@@ -10,6 +10,10 @@ import { HTTPAlquilaTuCanchaClient } from './infrastructure/clients/http-alquila
 import { EventsController } from './infrastructure/controllers/events.controller';
 import { SearchController } from './infrastructure/controllers/search.controller';
 import { CacheModule } from './infrastructure/services/cache.module';
+import {
+  RATE_LIMITER_SERVICE,
+  RedisRateLimiterService,
+} from './infrastructure/services/rate-limiter.service';
 import { RedisService } from './infrastructure/services/redis.service';
 
 @Module({
@@ -19,6 +23,10 @@ import { RedisService } from './infrastructure/services/redis.service';
     {
       provide: ALQUILA_TU_CANCHA_CLIENT,
       useClass: HTTPAlquilaTuCanchaClient,
+    },
+    {
+      provide: RATE_LIMITER_SERVICE,
+      useClass: RedisRateLimiterService,
     },
     GetAvailabilityHandler,
     ClubUpdatedHandler,

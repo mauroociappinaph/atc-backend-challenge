@@ -16,7 +16,12 @@ services:
       CACHE_TTL_CLUBS: 3600
       CACHE_TTL_COURTS: 1800
       CACHE_TTL_SLOTS: 300
+      # Rate Limiting Configuration
       RATE_LIMIT_RPM: 60
+      RATE_LIMIT_BUCKET_TTL_SECONDS: 120
+      RATE_LIMIT_MAX_WAIT_TIME_MS: 60000
+      RATE_LIMIT_CHECK_INTERVAL_MS: 100
+      RATE_LIMIT_STRATEGY: token_bucket
       CIRCUIT_BREAKER_THRESHOLD: 5
       CIRCUIT_BREAKER_TIMEOUT: 30000
   mock:
@@ -33,12 +38,12 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 3
