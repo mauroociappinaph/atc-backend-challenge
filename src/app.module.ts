@@ -10,6 +10,7 @@ import { HTTPAlquilaTuCanchaClient } from './infrastructure/clients/http-alquila
 import { EventsController } from './infrastructure/controllers/events.controller';
 import { SearchController } from './infrastructure/controllers/search.controller';
 import { CacheModule } from './infrastructure/services/cache.module';
+import { CircuitBreakerService } from './infrastructure/services/circuit-breaker.service';
 import {
   RATE_LIMITER_SERVICE,
   RedisRateLimiterService,
@@ -31,6 +32,7 @@ import { RedisService } from './infrastructure/services/redis.service';
     GetAvailabilityHandler,
     ClubUpdatedHandler,
     RedisService,
+    CircuitBreakerService,
   ],
 })
 export class AppModule {}
