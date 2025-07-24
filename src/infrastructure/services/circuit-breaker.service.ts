@@ -144,7 +144,8 @@ export class CircuitBreakerService {
 
       // If successful in HALF_OPEN, transition back to CLOSED
       this.transitionTo(CircuitBreakerState.CLOSED);
-      this.resetMetrics();
+      // Reset only failure count, keep success count
+      this.metrics.failures = 0;
 
       return result;
     } catch (error) {
