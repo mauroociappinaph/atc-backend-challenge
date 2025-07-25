@@ -22,7 +22,10 @@ export class TokenBucketStrategy implements RateLimitingStrategy {
     const timePassed = now - currentState.lastRefill;
     const tokensToAdd = (timePassed / 1000) * refillRate;
 
-    const availableTokens = Math.min(capacity, currentState.tokens + tokensToAdd);
+    const availableTokens = Math.min(
+      capacity,
+      currentState.tokens + tokensToAdd,
+    );
 
     if (availableTokens >= 1) {
       return {

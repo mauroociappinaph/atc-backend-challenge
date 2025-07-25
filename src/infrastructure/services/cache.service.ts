@@ -10,8 +10,6 @@ export interface CacheService {
   invalidatePattern(pattern: string): Promise<void>;
 }
 
-export const CACHE_SERVICE = Symbol('CACHE_SERVICE');
-
 @Injectable()
 export class RedisCacheService implements CacheService {
   private readonly logger = new Logger(RedisCacheService.name);

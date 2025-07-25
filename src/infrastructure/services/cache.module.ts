@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CACHE_SERVICE, RedisCacheService } from './cache.service';
+
+import { CACHE_SERVICE } from '../../domain/tokens';
+import { RedisCacheService } from './cache.service';
 import { RedisService } from './redis.service';
 
 @Module({
@@ -12,6 +14,6 @@ import { RedisService } from './redis.service';
       useClass: RedisCacheService,
     },
   ],
-  exports: [CACHE_SERVICE],
+  exports: [CACHE_SERVICE, RedisService],
 })
 export class CacheModule {}

@@ -36,3 +36,8 @@ lerna-debug.log*
 
 # Kiro AI Assistant
 .kiro/
+
+# Task documentation (internal tracking)
+task1-README.md
+task2-README.md
+task3-README.md

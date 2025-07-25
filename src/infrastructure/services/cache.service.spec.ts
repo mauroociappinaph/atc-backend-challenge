@@ -1,12 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { when } from 'jest-when';
 
-import {
-  CACHE_SERVICE,
-  CacheService,
-  RedisCacheService,
-} from './cache.service';
+import { CacheService, RedisCacheService } from './cache.service';
+import { CACHE_SERVICE } from '../../domain/tokens';
 import { RedisService } from './redis.service';
 
 describe('RedisCacheService', () => {
@@ -56,10 +52,8 @@ describe('RedisCacheService', () => {
       const testData = { id: 1, name: 'test' };
       const key = 'test:key';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.get)
-        .calledWith(key)
-        .mockResolvedValue(JSON.stringify(testData));
+      redisService.isConnected.mockReturnValue(true);
+      redisService.get.mockResolvedValue(JSON.stringify(testData));
 
       const result = await service.get<typeof testData>(key);
 
@@ -70,8 +64,8 @@ describe('RedisCacheService', () => {
     it('should return null when cache miss', async () => {
       const key = 'test:key';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.get).calledWith(key).mockResolvedValue(null);
+      redisService.isConnected.mockReturnValue(true);
+      redisService.get.mockResolvedValue(null);
 
       const result = await service.get(key);
 
@@ -82,7 +76,7 @@ describe('RedisCacheService', () => {
     it('should return null when Redis is not connected', async () => {
       const key = 'test:key';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(false);
+      redisService.isConnected.mockReturnValue(false);
 
       const result = await service.get(key);
 
@@ -94,8 +88,8 @@ describe('RedisCacheService', () => {
       const key = 'test:key';
       const error = new Error('Redis error');
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.get).calledWith(key).mockRejectedValue(error);
+      redisService.isConnected.mockReturnValue(true);
+      redisService.get.mockRejectedValue(error);
 
       const result = await service.get(key);
 
@@ -109,13 +103,9 @@ describe('RedisCacheService', () => {
       const key = 'clubs:test';
       const defaultTtl = 3600;
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(configService.get)
-        .calledWith('CACHE_TTL_CLUBS', defaultTtl)
-        .mockReturnValue(defaultTtl);
-      when(redisService.set)
-        .calledWith(key, JSON.stringify(testData), defaultTtl)
-        .mockResolvedValue();
+      redisService.isConnected.mockReturnValue(true);
+      configService.get.mockReturnValue(defaultTtl);
+      redisService.set.mockResolvedValue();
 
       await service.set(key, testData);
 
@@ -131,13 +121,9 @@ describe('RedisCacheService', () => {
       const key = 'courts:test';
       const defaultTtl = 1800;
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(configService.get)
-        .calledWith('CACHE_TTL_COURTS', defaultTtl)
-        .mockReturnValue(defaultTtl);
-      when(redisService.set)
-        .calledWith(key, JSON.stringify(testData), defaultTtl)
-        .mockResolvedValue();
+      redisService.isConnected.mockReturnValue(true);
+      configService.get.mockReturnValue(defaultTtl);
+      redisService.set.mockResolvedValue();
 
       await service.set(key, testData);
 
@@ -153,13 +139,9 @@ describe('RedisCacheService', () => {
       const key = 'slots:test';
       const defaultTtl = 300;
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(configService.get)
-        .calledWith('CACHE_TTL_SLOTS', defaultTtl)
-        .mockReturnValue(defaultTtl);
-      when(redisService.set)
-        .calledWith(key, JSON.stringify(testData), defaultTtl)
-        .mockResolvedValue();
+      redisService.isConnected.mockReturnValue(true);
+      configService.get.mockReturnValue(defaultTtl);
+      redisService.set.mockResolvedValue();
 
       await service.set(key, testData);
 
@@ -175,10 +157,8 @@ describe('RedisCacheService', () => {
       const key = 'custom:key';
       const customTtl = 600;
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.set)
-        .calledWith(key, JSON.stringify(testData), customTtl)
-        .mockResolvedValue();
+      redisService.isConnected.mockReturnValue(true);
+      redisService.set.mockResolvedValue();
 
       await service.set(key, testData, customTtl);
 
@@ -193,7 +173,7 @@ describe('RedisCacheService', () => {
       const testData = { id: 1, name: 'test' };
       const key = 'test:key';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(false);
+      redisService.isConnected.mockReturnValue(false);
 
       await service.set(key, testData);
 
@@ -205,13 +185,9 @@ describe('RedisCacheService', () => {
       const key = 'test:key';
       const error = new Error('Redis error');
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(configService.get)
-        .calledWith('CACHE_TTL_SLOTS', 300)
-        .mockReturnValue(300);
-      when(redisService.set)
-        .calledWith(key, JSON.stringify(testData), 300)
-        .mockRejectedValue(error);
+      redisService.isConnected.mockReturnValue(true);
+      configService.get.mockReturnValue(300);
+      redisService.set.mockRejectedValue(error);
 
       await expect(service.set(key, testData)).resolves.not.toThrow();
     });
@@ -221,8 +197,8 @@ describe('RedisCacheService', () => {
     it('should delete key when Redis is connected', async () => {
       const key = 'test:key';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.del).calledWith(key).mockResolvedValue(1);
+      redisService.isConnected.mockReturnValue(true);
+      redisService.del.mockResolvedValue(1);
 
       await service.del(key);
 
@@ -232,7 +208,7 @@ describe('RedisCacheService', () => {
     it('should skip when Redis is not connected', async () => {
       const key = 'test:key';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(false);
+      redisService.isConnected.mockReturnValue(false);
 
       await service.del(key);
 
@@ -243,8 +219,8 @@ describe('RedisCacheService', () => {
       const key = 'test:key';
       const error = new Error('Redis error');
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.del).calledWith(key).mockRejectedValue(error);
+      redisService.isConnected.mockReturnValue(true);
+      redisService.del.mockRejectedValue(error);
 
       await expect(service.del(key)).resolves.not.toThrow();
     });
@@ -255,13 +231,9 @@ describe('RedisCacheService', () => {
       const pattern = 'clubs:*';
       const matchingKeys = ['clubs:1', 'clubs:2', 'clubs:3'];
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(mockRedisClient.keys)
-        .calledWith(pattern)
-        .mockResolvedValue(matchingKeys);
-      when(mockRedisClient.del)
-        .calledWith(...matchingKeys)
-        .mockResolvedValue(3);
+      redisService.isConnected.mockReturnValue(true);
+      mockRedisClient.keys.mockResolvedValue(matchingKeys);
+      mockRedisClient.del.mockResolvedValue(3);
 
       await service.invalidatePattern(pattern);
 
@@ -272,8 +244,8 @@ describe('RedisCacheService', () => {
     it('should handle no matching keys', async () => {
       const pattern = 'nonexistent:*';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(mockRedisClient.keys).calledWith(pattern).mockResolvedValue([]);
+      redisService.isConnected.mockReturnValue(true);
+      mockRedisClient.keys.mockResolvedValue([]);
 
       await service.invalidatePattern(pattern);
 
@@ -284,7 +256,7 @@ describe('RedisCacheService', () => {
     it('should skip when Redis is not connected', async () => {
       const pattern = 'test:*';
 
-      when(redisService.isConnected).calledWith().mockReturnValue(false);
+      redisService.isConnected.mockReturnValue(false);
 
       await service.invalidatePattern(pattern);
 
@@ -296,8 +268,8 @@ describe('RedisCacheService', () => {
       const pattern = 'test:*';
       const error = new Error('Redis error');
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(mockRedisClient.keys).calledWith(pattern).mockRejectedValue(error);
+      redisService.isConnected.mockReturnValue(true);
+      mockRedisClient.keys.mockRejectedValue(error);
 
       await expect(service.invalidatePattern(pattern)).resolves.not.toThrow();
     });

@@ -6,11 +6,22 @@ export interface CircuitBreakerConfig {
   monitoringPeriod: number;
 }
 
-export const getCircuitBreakerConfig = (configService: ConfigService): CircuitBreakerConfig => {
+export const getCircuitBreakerConfig = (
+  configService: ConfigService,
+): CircuitBreakerConfig => {
   return {
-    failureThreshold: configService.get<number>('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5),
-    recoveryTimeout: configService.get<number>('CIRCUIT_BREAKER_RECOVERY_TIMEOUT', 60000), // 1 minute
-    monitoringPeriod: configService.get<number>('CIRCUIT_BREAKER_MONITORING_PERIOD', 60000), // 1 minute
+    failureThreshold: configService.get<number>(
+      'CIRCUIT_BREAKER_FAILURE_THRESHOLD',
+      5,
+    ),
+    recoveryTimeout: configService.get<number>(
+      'CIRCUIT_BREAKER_RECOVERY_TIMEOUT',
+      60000,
+    ), // 1 minute
+    monitoringPeriod: configService.get<number>(
+      'CIRCUIT_BREAKER_MONITORING_PERIOD',
+      60000,
+    ), // 1 minute
   };
 };
 

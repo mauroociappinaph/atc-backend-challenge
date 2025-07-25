@@ -15,8 +15,6 @@ export interface RateLimiterService {
   getConfiguration(): RateLimiterConfig;
 }
 
-export const RATE_LIMITER_SERVICE = Symbol('RATE_LIMITER_SERVICE');
-
 @Injectable()
 export class RedisRateLimiterService implements RateLimiterService {
   private readonly logger = new Logger(RedisRateLimiterService.name);

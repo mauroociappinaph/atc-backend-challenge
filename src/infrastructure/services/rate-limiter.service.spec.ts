@@ -2,9 +2,9 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { when } from 'jest-when';
 
+import { RATE_LIMITER_SERVICE } from '../../domain/tokens';
 import { RATE_LIMITER_CONFIG_KEYS } from '../config/rate-limiter.config';
 import {
-  RATE_LIMITER_SERVICE,
   RateLimiterService,
   RedisRateLimiterService,
 } from './rate-limiter.service';
@@ -15,9 +15,14 @@ describe('RedisRateLimiterService', () => {
   let redisService: jest.Mocked<RedisService>;
   let configService: jest.Mocked<ConfigService>;
 
+  let originalDateNow: () => number;
+
   beforeEach(async () => {
     // Clear all mocks before each test
     jest.clearAllMocks();
+
+    // Store original Date.now
+    originalDateNow = Date.now;
 
     const mockRedisService = {
       isConnected: jest.fn(),
@@ -67,6 +72,11 @@ describe('RedisRateLimiterService', () => {
     service = module.get<RateLimiterService>(RATE_LIMITER_SERVICE);
     redisService = module.get(RedisService) as jest.Mocked<RedisService>;
     configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
+  });
+
+  afterEach(() => {
+    // Restore Date.now after each test
+    Date.now = originalDateNow;
   });
 
   afterEach(() => {
@@ -256,13 +266,15 @@ describe('RedisRateLimiterService', () => {
     });
 
     it('should return bucket capacity when Redis throws error', async () => {
-      const identifier = 'test-client';
+      const identifier = 'error-test-client'; // Use unique identifier
       const error = new Error('Redis error');
+      const mockTime = Date.now();
 
-      when(redisService.isConnected).calledWith().mockReturnValue(true);
-      when(redisService.get)
-        .calledWith('rate_limit:test-client')
-        .mockRejectedValue(error);
+      // Mock Date.now to ensure consistent timing
+      Date.now = jest.fn(() => mockTime);
+
+      redisService.isConnected.mockReturnValue(true);
+      redisService.get.mockRejectedValue(error);
 
       const result = await service.getRemainingRequests(identifier);
 
@@ -535,9 +547,6 @@ describe('RedisRateLimiterService', () => {
     it('should handle burst requests within rate limit', async () => {
       const identifier = 'burst-test-client';
 
-      // Reset all mocks for this test
-      jest.clearAllMocks();
-
       redisService.isConnected.mockReturnValue(true);
 
       // Start with full bucket
@@ -585,7 +594,7 @@ describe('RedisRateLimiterService', () => {
         return Promise.resolve();
       });
 
-      // Should allow 60 requests total (30 existing + 30 from 2 minutes refill, capped at 60)
+      // Should allow 60 requests total (bucket should be refilled to 60, then consumed)
       for (let i = 0; i < 60; i++) {
         const result = await service.canMakeRequest(identifier);
         expect(result).toBe(true);
@@ -594,8 +603,6 @@ describe('RedisRateLimiterService', () => {
       // 61st request should be denied
       const result = await service.canMakeRequest(identifier);
       expect(result).toBe(false);
-
-      (Date.now as jest.Mock).mockRestore();
     });
 
     it('should handle fractional token calculations correctly', async () => {

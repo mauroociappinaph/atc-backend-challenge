@@ -1,6 +1,8 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import * as moment from 'moment';
 
 import { AlquilaTuCanchaClient } from '../../domain/ports/aquila-tu-cancha.client';
+import { ALQUILA_TU_CANCHA_CLIENT } from '../tokens';
 import { GetAvailabilityQuery } from '../commands/get-availaiblity.query';
 import { Club } from '../model/club';
 import { Court } from '../model/court';
@@ -11,9 +13,20 @@ describe('GetAvailabilityHandler', () => {
   let handler: GetAvailabilityHandler;
   let client: FakeAlquilaTuCanchaClient;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     client = new FakeAlquilaTuCanchaClient();
-    handler = new GetAvailabilityHandler(client);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        GetAvailabilityHandler,
+        {
+          provide: ALQUILA_TU_CANCHA_CLIENT,
+          useValue: client,
+        },
+      ],
+    }).compile();
+
+    handler = module.get<GetAvailabilityHandler>(GetAvailabilityHandler);
   });
 
   it('returns the availability', async () => {
