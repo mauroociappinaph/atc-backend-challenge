@@ -1,0 +1,181 @@
+name: Issue Automation
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '.kiro/specs/**/*.md'
+      - 'src/**/*.ts'
+      - 'test/**/*.ts'
+  pull_request:
+    types: [opened, closed, synchronize]
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'Task ID to create issue for'
+        required: true
+        type: string
+
+jobs:
+  manage-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install js-yaml
+
+      - name: Detect changes and create issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+
+            // Read tasks.md to get current task status
+            const tasksContent = fs.readFileSync('.kiro/specs/performance-optimization/tasks.md', 'utf8');
+
+            // Parse tasks from markdown
+            const taskRegex = /- \[([ x-])\] (\d+(?:\.\d+)*)\. (.+)/g;
+            const tasks = [];
+            let match;
+
+            while ((match = taskRegex.exec(tasksContent)) !== null) {
+              const [, status, taskId, description] = match;
+              tasks.push({
+                id: taskId,
+                description: description.trim(),
+                status: status === 'x' ? 'completed' : status === '-' ? 'in-progress' : 'pending',
+                isMainTask: !taskId.includes('.') || taskId.split('.').length === 2
+              });
+            }
+
+            // Get existing issues
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'performance,optimization'
+            });
+
+            const existingTaskIds = existingIssues.data
+              .map(issue => issue.title.match(/\[(\d+(?:\.\d+)*)\]/)?.[1])
+              .filter(Boolean);
+
+            // Create issues for new tasks
+            for (const task of tasks) {
+              if (task.isMainTask && !existingTaskIds.includes(task.id)) {
+                const subtasks = tasks.filter(t =>
+                  t.id.startsWith(task.id + '.') &&
+                  t.id.split('.').length === 3
+                );
+
+                const issueBody = `## 🎯 Performance Optimization Task
+            **Task ID**: ${task.id}
+            **Priority**: High
+            **Status**: ${task.status}
+
+            ## 📋 Description
+            ${task.description}
+
+            ## 🔧 Subtasks
+            ${subtasks.map(st => `- [ ] ${st.id} - ${st.description}`).join('\n')}
+
+            ## ✅ Acceptance Criteria
+            - [ ] All subtasks completed
+            - [ ] Unit tests written and passing
+            - [ ] Integration tests passing
+            - [ ] Performance improvements measurable
+            - [ ] Documentation updated
+
+            ## 📚 References
+            - Spec: [tasks.md](.kiro/specs/performance-optimization/tasks.md)
+            - Design: [design.md](.kiro/specs/performance-optimization/design.md)
+            - Requirements: [requirements.md](.kiro/specs/performance-optimization/requirements.md)
+
+            ## 🏷️ Labels
+            \`performance\` \`optimization\` \`enhancement\` \`task-${task.id}\`
+            `;
+
+                const issue = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `perf: [${task.id}] - ${task.description}`,
+                  body: issueBody,
+                  labels: ['performance', 'optimization', 'enhancement', `task-${task.id}`]
+                });
+
+                console.log(`Created issue #${issue.data.number} for task ${task.id}`);
+              }
+            }
+
+            // Update existing issues based on task status
+            for (const issue of existingIssues.data) {
+              const taskId = issue.title.match(/\[(\d+(?:\.\d+)*)\]/)?.[1];
+              if (taskId) {
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                  if (task.status === 'completed' && issue.state === 'open') {
+                    await github.rest.issues.update({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      state: 'closed',
+                      state_reason: 'completed'
+                    });
+                    console.log(`Closed issue #${issue.number} for completed task ${taskId}`);
+                  } else if (task.status === 'in-progress') {
+                    await github.rest.issues.addLabels({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      labels: ['in-progress']
+                    });
+                  }
+                }
+              }
+            }
+
+      - name: Create bug issues for test failures
+        uses: actions/github-script@v7
+        if: failure()
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `bug: Test failures detected in ${context.sha.substring(0, 7)}`,
+              body: `## 🐛 Bug Report
+            **Commit**: ${context.sha}
+            **Branch**: ${context.ref}
+            **Workflow**: ${context.workflow}
+
+            ## 📝 Description
+            Automated test failures detected during workflow execution.
+
+            ## 🔍 Investigation Required
+            - [ ] Review test failures in workflow logs
+            - [ ] Identify root cause
+            - [ ] Fix failing tests
+            - [ ] Verify fix with additional tests
+
+            ## 📚 References
+            - Workflow Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+            `,
+              labels: ['bug', 'priority-high', 'automated']
+            });
+
+            console.log(`Created bug issue #${issue.data.number} for test failures`);
