@@ -33,6 +33,19 @@ describe('SearchController', () => {
       set: jest.fn(),
       del: jest.fn(),
       invalidatePattern: jest.fn(),
+      getMetrics: jest.fn().mockReturnValue({
+        hits: 23,
+        misses: 27,
+        total: 50,
+        hitRatio: 0.46,
+        operations: {
+          gets: 50,
+          sets: 25,
+          deletes: 4,
+          invalidations: 7,
+        },
+      }),
+      resetMetrics: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
