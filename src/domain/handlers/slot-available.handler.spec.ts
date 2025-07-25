@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { CacheService } from '../../infrastructure/services/cache.service';
-import { CACHE_SERVICE } from '../tokens';
 import { SlotAvailableEvent } from '../events/slot-cancelled.event';
 import { Slot } from '../model/slot';
+import { CACHE_SERVICE } from '../tokens';
 import { SlotAvailableHandler } from './slot-available.handler';
 
 describe('SlotAvailableHandler', () => {

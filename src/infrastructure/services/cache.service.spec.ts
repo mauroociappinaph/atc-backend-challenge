@@ -1,8 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { CacheService, RedisCacheService } from './cache.service';
 import { CACHE_SERVICE } from '../../domain/tokens';
+import { CacheService, RedisCacheService } from './cache.service';
 import { RedisService } from './redis.service';
 
 describe('RedisCacheService', () => {

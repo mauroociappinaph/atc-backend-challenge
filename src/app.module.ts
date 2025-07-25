@@ -10,6 +10,7 @@ import { SlotAvailableHandler } from './domain/handlers/slot-available.handler';
 import { SlotBookedHandler } from './domain/handlers/slot-booked.handler';
 import {
   ALQUILA_TU_CANCHA_CLIENT,
+  CACHE_SERVICE,
   RATE_LIMITER_SERVICE,
 } from './domain/tokens';
 import { HTTPAlquilaTuCanchaClient } from './infrastructure/clients/http-alquila-tu-cancha.client';
