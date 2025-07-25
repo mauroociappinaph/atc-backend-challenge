@@ -8,11 +8,22 @@ import {
 } from '../config/rate-limiter.config';
 import { RedisService } from './redis.service';
 
+export interface RateLimiterMetrics {
+  totalRequests: number;
+  allowedRequests: number;
+  deniedRequests: number;
+  utilizationRatio: number;
+  averageWaitTime: number;
+  activeIdentifiers: number;
+}
+
 export interface RateLimiterService {
   canMakeRequest(identifier?: string): Promise<boolean>;
   waitForSlot(identifier?: string): Promise<void>;
   getRemainingRequests(identifier?: string): Promise<number>;
   getConfiguration(): RateLimiterConfig;
+  getMetrics(): RateLimiterMetrics;
+  resetMetrics(): void;
 }
 
 @Injectable()
@@ -24,6 +35,18 @@ export class RedisRateLimiterService implements RateLimiterService {
   private readonly config: RateLimiterConfig;
   private readonly bucketCapacity: number;
   private readonly refillRate: number;
+
+  // Metrics tracking
+  private metrics: RateLimiterMetrics = {
+    totalRequests: 0,
+    allowedRequests: 0,
+    deniedRequests: 0,
+    utilizationRatio: 0,
+    averageWaitTime: 0,
+    activeIdentifiers: 0,
+  };
+  private waitTimes: number[] = [];
+  private activeIdentifiersSet = new Set<string>();
 
   constructor(
     private readonly redisService: RedisService,
@@ -71,11 +94,17 @@ export class RedisRateLimiterService implements RateLimiterService {
   }
 
   async canMakeRequest(identifier = 'default'): Promise<boolean> {
+    this.metrics.totalRequests++;
+    this.activeIdentifiersSet.add(identifier);
+    this.metrics.activeIdentifiers = this.activeIdentifiersSet.size;
+
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn(
           'Redis not connected, allowing request (graceful degradation)',
         );
+        this.metrics.allowedRequests++;
+        this.updateUtilizationRatio();
         return true;
       }
 
@@ -96,32 +125,44 @@ export class RedisRateLimiterService implements RateLimiterService {
             updatedBucket.tokens,
           )}`,
         );
+        this.metrics.allowedRequests++;
+        this.updateUtilizationRatio();
         return true;
       }
 
       this.logger.debug(
         `Request denied for ${identifier}. No tokens available`,
       );
+      this.metrics.deniedRequests++;
+      this.updateUtilizationRatio();
       return false;
     } catch (error) {
       this.logger.error(`Rate limiter error for ${identifier}:`, error);
       // Graceful degradation - allow request on error
+      this.metrics.allowedRequests++;
+      this.updateUtilizationRatio();
       return true;
     }
   }
 
   async waitForSlot(identifier = 'default'): Promise<void> {
+    const startTime = Date.now();
     let waitTime = 0;
 
     while (waitTime < this.config.maxWaitTimeMs) {
       const canProceed = await this.canMakeRequest(identifier);
       if (canProceed) {
+        const totalWaitTime = Date.now() - startTime;
+        this.recordWaitTime(totalWaitTime);
         return;
       }
 
       await this.sleep(this.config.checkIntervalMs);
       waitTime += this.config.checkIntervalMs;
     }
+
+    const totalWaitTime = Date.now() - startTime;
+    this.recordWaitTime(totalWaitTime);
 
     this.logger.warn(
       `Rate limiter timeout for ${identifier} after ${this.config.maxWaitTimeMs}ms`,
@@ -208,6 +249,48 @@ export class RedisRateLimiterService implements RateLimiterService {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private recordWaitTime(waitTime: number): void {
+    this.waitTimes.push(waitTime);
+    // Keep only last 100 wait times for average calculation
+    if (this.waitTimes.length > 100) {
+      this.waitTimes.shift();
+    }
+    this.updateAverageWaitTime();
+  }
+
+  private updateUtilizationRatio(): void {
+    this.metrics.utilizationRatio = this.metrics.totalRequests > 0
+      ? this.metrics.deniedRequests / this.metrics.totalRequests
+      : 0;
+  }
+
+  private updateAverageWaitTime(): void {
+    if (this.waitTimes.length === 0) {
+      this.metrics.averageWaitTime = 0;
+      return;
+    }
+
+    const sum = this.waitTimes.reduce((acc, time) => acc + time, 0);
+    this.metrics.averageWaitTime = sum / this.waitTimes.length;
+  }
+
+  getMetrics(): RateLimiterMetrics {
+    return { ...this.metrics };
+  }
+
+  resetMetrics(): void {
+    this.metrics = {
+      totalRequests: 0,
+      allowedRequests: 0,
+      deniedRequests: 0,
+      utilizationRatio: 0,
+      averageWaitTime: 0,
+      activeIdentifiers: 0,
+    };
+    this.waitTimes = [];
+    this.activeIdentifiersSet.clear();
   }
 }
 

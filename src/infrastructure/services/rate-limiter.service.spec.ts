@@ -696,4 +696,146 @@ describe('RedisRateLimiterService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('metrics', () => {
+    it('should track total requests and allowed/denied counts', async () => {
+      const identifier = 'metrics-test-client';
+
+      when(redisService.isConnected).calledWith().mockReturnValue(true);
+
+      // Mock bucket with 2 tokens
+      const bucketData = { tokens: 2, lastRefill: Date.now() };
+      when(redisService.get)
+        .calledWith('rate_limit:metrics-test-client')
+        .mockResolvedValue(JSON.stringify(bucketData));
+      when(redisService.set)
+        .calledWith(expect.any(String), expect.any(String), 120)
+        .mockResolvedValue();
+
+      // First two requests should be allowed
+      await service.canMakeRequest(identifier);
+      await service.canMakeRequest(identifier);
+
+      // Third request should be denied (no tokens left)
+      const bucketEmpty = { tokens: 0, lastRefill: Date.now() };
+      when(redisService.get)
+        .calledWith('rate_limit:metrics-test-client')
+        .mockResolvedValue(JSON.stringify(bucketEmpty));
+      await service.canMakeRequest(identifier);
+
+      const metrics = service.getMetrics();
+      expect(metrics.totalRequests).toBe(3);
+      expect(metrics.allowedRequests).toBe(2);
+      expect(metrics.deniedRequests).toBe(1);
+      expect(metrics.utilizationRatio).toBeCloseTo(1 / 3); // 1 denied out of 3 total
+      expect(metrics.activeIdentifiers).toBe(1);
+    });
+
+    it('should track wait times correctly', async () => {
+      const identifier = 'wait-test-client';
+      let mockTime = Date.now();
+
+      // Mock Date.now to control time progression
+      const originalDateNow = Date.now;
+      Date.now = jest.fn(() => mockTime);
+
+      // Mock setTimeout to advance time and resolve
+      jest
+        .spyOn(global, 'setTimeout')
+        .mockImplementation((callback: any, delay?: number) => {
+          mockTime += delay || 100; // Advance mock time by delay or default 100ms
+          callback();
+          return {} as any;
+        });
+
+      when(redisService.isConnected).calledWith().mockReturnValue(true);
+
+      // First call returns false (no tokens), second call returns true
+      let callCount = 0;
+      jest.spyOn(service, 'canMakeRequest').mockImplementation(async () => {
+        callCount++;
+        return callCount > 1; // Return true on second call
+      });
+
+      await service.waitForSlot(identifier);
+
+      const metrics = service.getMetrics();
+      expect(metrics.averageWaitTime).toBeGreaterThan(0);
+
+      // Restore mocks
+      Date.now = originalDateNow;
+      jest.restoreAllMocks();
+    });
+
+    it('should track multiple active identifiers', async () => {
+      when(redisService.isConnected).calledWith().mockReturnValue(true);
+
+      const bucketData = { tokens: 10, lastRefill: Date.now() };
+      when(redisService.get)
+        .calledWith(expect.any(String))
+        .mockResolvedValue(JSON.stringify(bucketData));
+      when(redisService.set)
+        .calledWith(expect.any(String), expect.any(String), 120)
+        .mockResolvedValue();
+
+      await service.canMakeRequest('client1');
+      await service.canMakeRequest('client2');
+      await service.canMakeRequest('client3');
+
+      const metrics = service.getMetrics();
+      expect(metrics.activeIdentifiers).toBe(3);
+    });
+
+    it('should reset metrics correctly', async () => {
+      const identifier = 'reset-test-client';
+
+      when(redisService.isConnected).calledWith().mockReturnValue(true);
+
+      const bucketData = { tokens: 1, lastRefill: Date.now() };
+      when(redisService.get)
+        .calledWith('rate_limit:reset-test-client')
+        .mockResolvedValue(JSON.stringify(bucketData));
+      when(redisService.set)
+        .calledWith(expect.any(String), expect.any(String), 120)
+        .mockResolvedValue();
+
+      await service.canMakeRequest(identifier);
+
+      let metrics = service.getMetrics();
+      expect(metrics.totalRequests).toBe(1);
+      expect(metrics.allowedRequests).toBe(1);
+
+      service.resetMetrics();
+
+      metrics = service.getMetrics();
+      expect(metrics.totalRequests).toBe(0);
+      expect(metrics.allowedRequests).toBe(0);
+      expect(metrics.deniedRequests).toBe(0);
+      expect(metrics.utilizationRatio).toBe(0);
+      expect(metrics.averageWaitTime).toBe(0);
+      expect(metrics.activeIdentifiers).toBe(0);
+    });
+
+    it('should handle utilization ratio calculation correctly', async () => {
+      // Test with no requests
+      let metrics = service.getMetrics();
+      expect(metrics.utilizationRatio).toBe(0);
+
+      // Test with some requests
+      const identifier = 'utilization-test-client';
+      when(redisService.isConnected).calledWith().mockReturnValue(true);
+
+      const bucketData = { tokens: 0, lastRefill: Date.now() };
+      when(redisService.get)
+        .calledWith('rate_limit:utilization-test-client')
+        .mockResolvedValue(JSON.stringify(bucketData));
+
+      // All requests will be denied (no tokens)
+      await service.canMakeRequest(identifier);
+      await service.canMakeRequest(identifier);
+
+      metrics = service.getMetrics();
+      expect(metrics.utilizationRatio).toBe(1); // 100% denied
+    });
+  });
 });

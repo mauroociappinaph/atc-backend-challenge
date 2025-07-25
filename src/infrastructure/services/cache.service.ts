@@ -8,11 +8,40 @@ export interface CacheService {
   set<T>(key: string, value: T, ttl?: number): Promise<void>;
   del(key: string): Promise<void>;
   invalidatePattern(pattern: string): Promise<void>;
+  getMetrics(): CacheMetrics;
+  resetMetrics(): void;
+}
+
+export interface CacheMetrics {
+  hits: number;
+  misses: number;
+  total: number;
+  hitRatio: number;
+  operations: {
+    gets: number;
+    sets: number;
+    deletes: number;
+    invalidations: number;
+  };
 }
 
 @Injectable()
 export class RedisCacheService implements CacheService {
   private readonly logger = new Logger(RedisCacheService.name);
+
+  // Metrics tracking
+  private metrics: CacheMetrics = {
+    hits: 0,
+    misses: 0,
+    total: 0,
+    hitRatio: 0,
+    operations: {
+      gets: 0,
+      sets: 0,
+      deletes: 0,
+      invalidations: 0,
+    },
+  };
 
   // Default TTL values in seconds
   private readonly defaultTtls = {
@@ -27,27 +56,35 @@ export class RedisCacheService implements CacheService {
   ) {}
 
   async get<T>(key: string): Promise<T | null> {
+    this.metrics.operations.gets++;
+
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn('Redis not connected, cache miss for key:', key);
+        this.recordMiss();
         return null;
       }
 
       const value = await this.redisService.get(key);
       if (value === null) {
         this.logger.debug(`Cache miss for key: ${key}`);
+        this.recordMiss();
         return null;
       }
 
       this.logger.debug(`Cache hit for key: ${key}`);
+      this.recordHit();
       return JSON.parse(value) as T;
     } catch (error) {
       this.logger.error(`Failed to get cache key ${key}:`, error);
+      this.recordMiss();
       return null; // Graceful degradation
     }
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+    this.metrics.operations.sets++;
+
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn(
@@ -69,6 +106,8 @@ export class RedisCacheService implements CacheService {
   }
 
   async del(key: string): Promise<void> {
+    this.metrics.operations.deletes++;
+
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn(
@@ -87,6 +126,8 @@ export class RedisCacheService implements CacheService {
   }
 
   async invalidatePattern(pattern: string): Promise<void> {
+    this.metrics.operations.invalidations++;
+
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn(
@@ -135,5 +176,41 @@ export class RedisCacheService implements CacheService {
 
     // Default fallback
     return this.defaultTtls.slots;
+  }
+
+  private recordHit(): void {
+    this.metrics.hits++;
+    this.metrics.total++;
+    this.updateHitRatio();
+  }
+
+  private recordMiss(): void {
+    this.metrics.misses++;
+    this.metrics.total++;
+    this.updateHitRatio();
+  }
+
+  private updateHitRatio(): void {
+    this.metrics.hitRatio =
+      this.metrics.total > 0 ? this.metrics.hits / this.metrics.total : 0;
+  }
+
+  getMetrics(): CacheMetrics {
+    return { ...this.metrics };
+  }
+
+  resetMetrics(): void {
+    this.metrics = {
+      hits: 0,
+      misses: 0,
+      total: 0,
+      hitRatio: 0,
+      operations: {
+        gets: 0,
+        sets: 0,
+        deletes: 0,
+        invalidations: 0,
+      },
+    };
   }
 }

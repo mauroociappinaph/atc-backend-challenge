@@ -274,4 +274,93 @@ describe('RedisCacheService', () => {
       await expect(service.invalidatePattern(pattern)).resolves.not.toThrow();
     });
   });
+
+  describe('metrics', () => {
+    it('should track cache hits and misses correctly', async () => {
+      const key = 'test:key';
+      const value = { test: 'data' };
+
+      redisService.isConnected.mockReturnValue(true);
+
+      // First call - cache miss
+      redisService.get.mockResolvedValueOnce(null);
+      await service.get(key);
+
+      // Second call - cache hit
+      redisService.get.mockResolvedValueOnce(JSON.stringify(value));
+      await service.get(key);
+
+      const metrics = service.getMetrics();
+      expect(metrics.hits).toBe(1);
+      expect(metrics.misses).toBe(1);
+      expect(metrics.total).toBe(2);
+      expect(metrics.hitRatio).toBe(0.5);
+      expect(metrics.operations.gets).toBe(2);
+    });
+
+    it('should track set operations', async () => {
+      const key = 'test:key';
+      const value = { test: 'data' };
+
+      redisService.isConnected.mockReturnValue(true);
+      redisService.set.mockResolvedValue();
+
+      await service.set(key, value);
+      await service.set(key, value);
+
+      const metrics = service.getMetrics();
+      expect(metrics.operations.sets).toBe(2);
+    });
+
+    it('should track delete operations', async () => {
+      const key = 'test:key';
+
+      redisService.isConnected.mockReturnValue(true);
+      redisService.del.mockResolvedValue(1);
+
+      await service.del(key);
+
+      const metrics = service.getMetrics();
+      expect(metrics.operations.deletes).toBe(1);
+    });
+
+    it('should track invalidation operations', async () => {
+      const pattern = 'test:*';
+
+      redisService.isConnected.mockReturnValue(true);
+      mockRedisClient.keys.mockResolvedValue(['test:1', 'test:2']);
+      mockRedisClient.del.mockResolvedValue(2);
+
+      await service.invalidatePattern(pattern);
+
+      const metrics = service.getMetrics();
+      expect(metrics.operations.invalidations).toBe(1);
+    });
+
+    it('should reset metrics correctly', async () => {
+      const key = 'test:key';
+
+      redisService.isConnected.mockReturnValue(true);
+      redisService.get.mockResolvedValue(null);
+
+      await service.get(key);
+
+      let metrics = service.getMetrics();
+      expect(metrics.misses).toBe(1);
+
+      service.resetMetrics();
+
+      metrics = service.getMetrics();
+      expect(metrics.hits).toBe(0);
+      expect(metrics.misses).toBe(0);
+      expect(metrics.total).toBe(0);
+      expect(metrics.hitRatio).toBe(0);
+      expect(metrics.operations.gets).toBe(0);
+    });
+
+    it('should handle hit ratio calculation with zero total', () => {
+      const metrics = service.getMetrics();
+      expect(metrics.hitRatio).toBe(0);
+    });
+  });
 });

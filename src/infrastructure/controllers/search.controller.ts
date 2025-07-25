@@ -310,10 +310,11 @@ export class SearchController {
   }
 
   private getRequestStats() {
+    const cacheMetrics = this.cacheService.getMetrics();
     return {
       totalRequests: this.requestCount,
-      cacheHitRatio: this.getCacheHitRatio(),
-      cacheStats: { ...this.cacheMetrics },
+      cacheHitRatio: cacheMetrics.hitRatio,
+      cacheStats: cacheMetrics,
     };
   }
 
