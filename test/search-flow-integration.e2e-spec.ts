@@ -181,7 +181,7 @@ describe('Search Flow Integration (e2e)', () => {
   describe('Health Check Integration', () => {
     it('should return healthy status when all services are operational', async () => {
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .expect(200);
 
       expect(response.body.status).toBe('ok');
@@ -193,7 +193,7 @@ describe('Search Flow Integration (e2e)', () => {
 
     it('should include Redis connectivity status', async () => {
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .expect(200);
 
       expect(response.body.services.redis.connected).toBeDefined();
@@ -208,7 +208,7 @@ describe('Search Flow Integration (e2e)', () => {
         .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' });
 
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .expect(200);
 
       expect(response.body.metrics).toBeDefined();
@@ -239,7 +239,7 @@ describe('Search Flow Integration (e2e)', () => {
       jest.spyOn(redisService, 'isConnected').mockReturnValue(false);
 
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .expect(200);
 
       expect(response.body.status).toBe('degraded');

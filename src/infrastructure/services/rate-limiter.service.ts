@@ -31,21 +31,29 @@ export class RedisRateLimiterService implements RateLimiterService {
   ) {
     // Load configuration from environment variables
     this.config = {
-      rpm: this.configService.get<number>(
-        RATE_LIMITER_CONFIG_KEYS.RPM,
-        DEFAULT_RATE_LIMITER_CONFIG.rpm,
+      rpm: Number(
+        this.configService.get<number>(
+          RATE_LIMITER_CONFIG_KEYS.RPM,
+          DEFAULT_RATE_LIMITER_CONFIG.rpm,
+        ),
       ),
-      bucketTtlSeconds: this.configService.get<number>(
-        RATE_LIMITER_CONFIG_KEYS.BUCKET_TTL_SECONDS,
-        DEFAULT_RATE_LIMITER_CONFIG.bucketTtlSeconds,
+      bucketTtlSeconds: Number(
+        this.configService.get<number>(
+          RATE_LIMITER_CONFIG_KEYS.BUCKET_TTL_SECONDS,
+          DEFAULT_RATE_LIMITER_CONFIG.bucketTtlSeconds,
+        ),
       ),
-      maxWaitTimeMs: this.configService.get<number>(
-        RATE_LIMITER_CONFIG_KEYS.MAX_WAIT_TIME_MS,
-        DEFAULT_RATE_LIMITER_CONFIG.maxWaitTimeMs,
+      maxWaitTimeMs: Number(
+        this.configService.get<number>(
+          RATE_LIMITER_CONFIG_KEYS.MAX_WAIT_TIME_MS,
+          DEFAULT_RATE_LIMITER_CONFIG.maxWaitTimeMs,
+        ),
       ),
-      checkIntervalMs: this.configService.get<number>(
-        RATE_LIMITER_CONFIG_KEYS.CHECK_INTERVAL_MS,
-        DEFAULT_RATE_LIMITER_CONFIG.checkIntervalMs,
+      checkIntervalMs: Number(
+        this.configService.get<number>(
+          RATE_LIMITER_CONFIG_KEYS.CHECK_INTERVAL_MS,
+          DEFAULT_RATE_LIMITER_CONFIG.checkIntervalMs,
+        ),
       ),
       strategy: this.configService.get<'token_bucket' | 'sliding_window'>(
         RATE_LIMITER_CONFIG_KEYS.STRATEGY,

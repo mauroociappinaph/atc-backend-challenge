@@ -38,11 +38,26 @@ describe('System Integration (e2e)', () => {
     try {
       await redisService.onModuleInit();
     } catch (error) {
-      console.warn('Redis not available for integration tests:', error.message);
+      console.warn(
+        'Redis not available for integration tests:',
+        (error as Error).message,
+      );
     }
   });
 
   afterAll(async () => {
+    // Ensure proper cleanup of Redis connections
+    if (redisService && redisService.isConnected()) {
+      try {
+        const client = redisService.getClient();
+        await client.quit();
+      } catch (error) {
+        console.warn(
+          'Error closing Redis connection:',
+          (error as Error).message,
+        );
+      }
+    }
     await app.close();
   });
 
@@ -53,7 +68,7 @@ describe('System Integration (e2e)', () => {
         const client = redisService.getClient();
         await client.flushall();
       } catch (error) {
-        console.warn('Could not clear Redis cache:', error.message);
+        console.warn('Could not clear Redis cache:', (error as Error).message);
       }
     }
   });
@@ -78,7 +93,7 @@ describe('System Integration (e2e)', () => {
   describe('Health Check Endpoint', () => {
     it('should return health status', async () => {
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .timeout(5000);
 
       console.log('Health endpoint response status:', response.status);
@@ -97,7 +112,7 @@ describe('System Integration (e2e)', () => {
 
     it('should include Redis status in health check', async () => {
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .timeout(5000);
 
       if (response.status === 200) {
@@ -273,7 +288,7 @@ describe('System Integration (e2e)', () => {
       const startTime = Date.now();
 
       const response = await request(app.getHttpServer())
-        .get('/health')
+        .get('/search/health')
         .timeout(5000);
 
       const responseTime = Date.now() - startTime;
@@ -286,7 +301,7 @@ describe('System Integration (e2e)', () => {
     it('should handle multiple concurrent requests', async () => {
       const promises = Array.from({ length: 5 }, () =>
         request(app.getHttpServer())
-          .get('/health')
+          .get('/search/health')
           .timeout(5000)
           .catch((err) => ({ status: 500, error: err.message })),
       );

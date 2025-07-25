@@ -1,7 +1,3 @@
-import { HttpModule } from '@nestjs/axios';
-import { INestApplication } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { CqrsModule } from '@nestjs/cqrs';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -9,12 +5,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import RedisMock from 'ioredis-mock';
 
-import { ClubUpdatedHandler } from '../src/domain/handlers/club-updated.handler';
-import { GetAvailabilityHandler } from '../src/domain/handlers/get-availability.handler';
-import { ALQUILA_TU_CANCHA_CLIENT } from '../src/domain/ports/aquila-tu-cancha.client';
-import { HTTPAlquilaTuCanchaClient } from '../src/infrastructure/clients/http-alquila-tu-cancha.client';
-import { EventsController } from '../src/infrastructure/controllers/events.controller';
-import { SearchController } from '../src/infrastructure/controllers/search.controller';
+import { AppModule } from '../src/app.module';
 import { RedisService } from '../src/infrastructure/services/redis.service';
 
 // Mock ioredis for integration testing
@@ -31,17 +22,7 @@ describe('Redis API Integration (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [HttpModule, CqrsModule, ConfigModule.forRoot()],
-      controllers: [SearchController, EventsController],
-      providers: [
-        {
-          provide: ALQUILA_TU_CANCHA_CLIENT,
-          useClass: HTTPAlquilaTuCanchaClient,
-        },
-        GetAvailabilityHandler,
-        ClubUpdatedHandler,
-        RedisService,
-      ],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
@@ -54,6 +35,18 @@ describe('Redis API Integration (e2e)', () => {
   });
 
   afterAll(async () => {
+    // Properly close Redis connection before closing the app
+    if (redisService && redisService.isConnected()) {
+      try {
+        const client = redisService.getClient();
+        await client.quit();
+      } catch (error) {
+        console.warn(
+          'Error closing Redis connection:',
+          (error as Error).message,
+        );
+      }
+    }
     await app.close();
   });
 
@@ -83,7 +76,8 @@ describe('Redis API Integration (e2e)', () => {
       expect(retrievedValue).toBe(cacheValue);
 
       // Parse and verify the cached data structure
-      const parsedData = JSON.parse(retrievedValue!);
+      expect(retrievedValue).toBeTruthy();
+      const parsedData = JSON.parse(retrievedValue as string);
       expect(parsedData).toHaveProperty('clubs');
       expect(parsedData).toHaveProperty('timestamp');
       expect(parsedData.clubs).toHaveLength(1);
@@ -236,9 +230,9 @@ describe('Redis API Integration (e2e)', () => {
       expect(slotsData).toBeTruthy();
 
       // Verify data structure
-      const clubs = JSON.parse(clubsData!);
-      const courts = JSON.parse(courtsData!);
-      const slots = JSON.parse(slotsData!);
+      const clubs = JSON.parse(clubsData as string);
+      const courts = JSON.parse(courtsData as string);
+      const slots = JSON.parse(slotsData as string);
 
       expect(clubs).toHaveLength(1);
       expect(courts).toHaveLength(1);

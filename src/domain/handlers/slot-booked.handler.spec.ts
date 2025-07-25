@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { CacheService } from '../../infrastructure/services/cache.service';
-import { CACHE_SERVICE } from '../tokens';
 import { SlotBookedEvent } from '../events/slot-booked.event';
 import { Slot } from '../model/slot';
+import { CACHE_SERVICE } from '../tokens';
 import { SlotBookedHandler } from './slot-booked.handler';
 
 describe('SlotBookedHandler', () => {

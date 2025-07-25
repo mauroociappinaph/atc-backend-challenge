@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as moment from 'moment';
 
@@ -14,6 +14,7 @@ import { RateLimiterService } from '../services/rate-limiter.service';
 
 @Injectable()
 export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
+  private readonly logger = new Logger(HTTPAlquilaTuCanchaClient.name);
   private base_url: string;
 
   constructor(
@@ -30,9 +31,15 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
     const cacheKey = `clubs:${placeId}`;
 
     // Check cache first
-    const cachedClubs = await this.cacheService.get<Club[]>(cacheKey);
-    if (cachedClubs) {
-      return cachedClubs;
+    let cachedClubs: Club[] | null = null;
+    try {
+      cachedClubs = await this.cacheService.get<Club[]>(cacheKey);
+      if (cachedClubs) {
+        return cachedClubs;
+      }
+    } catch (error) {
+      // Cache service error - continue without cache
+      this.logger.warn(`Cache service error for key ${cacheKey}:`, error);
     }
 
     // Wait for rate limiter slot
@@ -55,7 +62,12 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
 
     // Store in cache with 5 minute TTL
     if (clubs && clubs.length > 0) {
-      await this.cacheService.set(cacheKey, clubs, 300);
+      try {
+        await this.cacheService.set(cacheKey, clubs, 300);
+      } catch (error) {
+        // Cache service error - continue without caching
+        this.logger.warn(`Failed to cache clubs for key ${cacheKey}:`, error);
+      }
     }
 
     return clubs;
@@ -65,9 +77,15 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
     const cacheKey = `courts:${clubId}`;
 
     // Check cache first
-    const cachedCourts = await this.cacheService.get<Court[]>(cacheKey);
-    if (cachedCourts) {
-      return cachedCourts;
+    let cachedCourts: Court[] | null = null;
+    try {
+      cachedCourts = await this.cacheService.get<Court[]>(cacheKey);
+      if (cachedCourts) {
+        return cachedCourts;
+      }
+    } catch (error) {
+      // Cache service error - continue without cache
+      this.logger.warn(`Cache service error for key ${cacheKey}:`, error);
     }
 
     // Wait for rate limiter slot
@@ -92,7 +110,12 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
 
     // Store in cache with 10 minute TTL (courts change less frequently)
     if (courts && courts.length > 0) {
-      await this.cacheService.set(cacheKey, courts, 600);
+      try {
+        await this.cacheService.set(cacheKey, courts, 600);
+      } catch (error) {
+        // Cache service error - continue without caching
+        this.logger.warn(`Failed to cache courts for key ${cacheKey}:`, error);
+      }
     }
 
     return courts;
@@ -107,9 +130,15 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
     const cacheKey = `slots:${clubId}:${courtId}:${dateStr}`;
 
     // Check cache first
-    const cachedSlots = await this.cacheService.get<Slot[]>(cacheKey);
-    if (cachedSlots) {
-      return cachedSlots;
+    let cachedSlots: Slot[] | null = null;
+    try {
+      cachedSlots = await this.cacheService.get<Slot[]>(cacheKey);
+      if (cachedSlots) {
+        return cachedSlots;
+      }
+    } catch (error) {
+      // Cache service error - continue without cache
+      this.logger.warn(`Cache service error for key ${cacheKey}:`, error);
     }
 
     // Wait for rate limiter slot
@@ -135,7 +164,12 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
 
     // Store in cache with 5 minute TTL (slots change frequently)
     if (slots && slots.length > 0) {
-      await this.cacheService.set(cacheKey, slots, 300);
+      try {
+        await this.cacheService.set(cacheKey, slots, 300);
+      } catch (error) {
+        // Cache service error - continue without caching
+        this.logger.warn(`Failed to cache slots for key ${cacheKey}:`, error);
+      }
     }
 
     return slots;

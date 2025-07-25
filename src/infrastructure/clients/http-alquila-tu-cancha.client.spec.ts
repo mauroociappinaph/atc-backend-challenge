@@ -615,4 +615,319 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       );
     });
   });
+
+  describe('enhanced functionality edge cases', () => {
+    it('should handle cache service returning undefined gracefully', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(undefined);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual(mockClubs);
+      expect(rateLimiter.waitForSlot).toHaveBeenCalledWith('http-client');
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+    });
+
+    it('should handle cache set failures gracefully', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      // Cache service is designed to not throw, but let's test it doesn't break the flow
+      cacheService.set.mockImplementation(async () => {
+        // Simulate cache service handling error internally without throwing
+        return;
+      });
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual(mockClubs);
+      expect(cacheService.set).toHaveBeenCalled();
+    });
+
+    it('should handle rate limiter timeout gracefully', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockRejectedValue(
+        new Error('Rate limit timeout for http-client'),
+      );
+
+      await expect(client.getClubs(placeId)).rejects.toThrow(
+        'Rate limit timeout for http-client',
+      );
+    });
+
+    it('should handle circuit breaker throwing error without fallback', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockRejectedValue(
+        new Error('Circuit breaker error'),
+      );
+
+      await expect(client.getClubs(placeId)).rejects.toThrow(
+        'Circuit breaker error',
+      );
+    });
+
+    it('should handle empty response data correctly', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: null,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toBeNull();
+      expect(cacheService.set).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed cached data gracefully', async () => {
+      const placeId = 'test-place';
+      // Cache returns malformed data that doesn't match expected type
+      cacheService.get.mockResolvedValue('invalid-data');
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toBe('invalid-data');
+      expect(rateLimiter.waitForSlot).not.toHaveBeenCalled();
+      expect(circuitBreaker.execute).not.toHaveBeenCalled();
+    });
+
+    it('should handle concurrent requests to same resource', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      // Execute multiple concurrent requests
+      const promises = [
+        client.getClubs(placeId),
+        client.getClubs(placeId),
+        client.getClubs(placeId),
+      ];
+
+      const results = await Promise.all(promises);
+
+      // All should return the same result
+      results.forEach((result) => {
+        expect(result).toEqual(mockClubs);
+      });
+
+      // Rate limiter should be called for each request
+      expect(rateLimiter.waitForSlot).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle different HTTP status codes correctly', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 201, // Created instead of OK
+        statusText: 'Created',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual(mockClubs);
+      expect(cacheService.set).toHaveBeenCalledWith(
+        `clubs:${placeId}`,
+        mockClubs,
+        300,
+      );
+    });
+
+    it('should handle network timeout errors', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation, fallback) => {
+        try {
+          return await operation();
+        } catch (error) {
+          return fallback ? await fallback() : [];
+        }
+      });
+
+      const timeoutError = new Error('timeout of 5000ms exceeded');
+      timeoutError.name = 'TimeoutError';
+      httpService.axiosRef.get = jest.fn().mockRejectedValue(timeoutError);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual([]);
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+    });
+
+    it('should handle HTTP 404 errors correctly', async () => {
+      const placeId = 'nonexistent-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation, fallback) => {
+        try {
+          return await operation();
+        } catch (error) {
+          return fallback ? await fallback() : [];
+        }
+      });
+
+      const notFoundError = new Error('Request failed with status code 404');
+      httpService.axiosRef.get = jest.fn().mockRejectedValue(notFoundError);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual([]);
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+    });
+
+    it('should handle HTTP 500 errors correctly', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation, fallback) => {
+        try {
+          return await operation();
+        } catch (error) {
+          return fallback ? await fallback() : [];
+        }
+      });
+
+      const serverError = new Error('Request failed with status code 500');
+      httpService.axiosRef.get = jest.fn().mockRejectedValue(serverError);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual([]);
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe('service integration validation', () => {
+    it('should call services in correct order for cache miss', async () => {
+      const placeId = 'test-place';
+      const callOrder: string[] = [];
+
+      cacheService.get.mockImplementation(async () => {
+        callOrder.push('cache.get');
+        return null;
+      });
+
+      rateLimiter.waitForSlot.mockImplementation(async () => {
+        callOrder.push('rateLimiter.waitForSlot');
+      });
+
+      circuitBreaker.execute.mockImplementation(async (operation) => {
+        callOrder.push('circuitBreaker.execute');
+        return operation();
+      });
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockImplementation(async () => {
+        callOrder.push('http.get');
+        return mockResponse;
+      });
+
+      cacheService.set.mockImplementation(async () => {
+        callOrder.push('cache.set');
+      });
+
+      await client.getClubs(placeId);
+
+      expect(callOrder).toEqual([
+        'cache.get',
+        'rateLimiter.waitForSlot',
+        'circuitBreaker.execute',
+        'http.get',
+        'cache.set',
+      ]);
+    });
+
+    it('should skip rate limiter and circuit breaker on cache hit', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(mockClubs);
+
+      await client.getClubs(placeId);
+
+      expect(cacheService.get).toHaveBeenCalledWith(`clubs:${placeId}`);
+      expect(rateLimiter.waitForSlot).not.toHaveBeenCalled();
+      expect(circuitBreaker.execute).not.toHaveBeenCalled();
+      expect(httpService.axiosRef.get).not.toHaveBeenCalled();
+      expect(cacheService.set).not.toHaveBeenCalled();
+    });
+
+    it('should validate all service dependencies are properly injected', () => {
+      expect(client).toBeDefined();
+      expect(httpService).toBeDefined();
+      expect(cacheService).toBeDefined();
+      expect(rateLimiter).toBeDefined();
+      expect(circuitBreaker).toBeDefined();
+      expect(configService).toBeDefined();
+    });
+  });
 });

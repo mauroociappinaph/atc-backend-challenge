@@ -9,10 +9,8 @@ import { ClubUpdatedEvent } from '../src/domain/events/club-updated.event';
 import { CourtUpdatedEvent } from '../src/domain/events/court-updated.event';
 import { SlotBookedEvent } from '../src/domain/events/slot-booked.event';
 import { SlotAvailableEvent } from '../src/domain/events/slot-cancelled.event';
-import {
-  CACHE_SERVICE,
-  CacheService,
-} from '../src/infrastructure/services/cache.service';
+import { CACHE_SERVICE } from '../src/domain/tokens';
+import { CacheService } from '../src/infrastructure/services/cache.service';
 import { RedisService } from '../src/infrastructure/services/redis.service';
 
 describe('Event-Driven Cache Invalidation (e2e)', () => {
