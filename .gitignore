@@ -44,5 +44,15 @@ task3-README.md
 task4-README.md
 task5-README.md
 task6-README.md
+task7-README.md
+task8-README.md
+task9-README.md
+task10-README.md
 TECHNICAL_DECISIONS.md
 PERFORMANCE_VALIDATION_REPORT.md
+TASK_9_2_COMPLETION_SUMMARY.md
+
+# GitHub Issues Management (internal tracking)
+github-issues/
+PROJECT_ISSUE_MANAGEMENT.md
+scripts/manage-github-issues.js
