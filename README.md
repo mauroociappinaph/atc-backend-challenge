@@ -303,28 +303,384 @@ curl "http://localhost:3000/search/health" | jq '.metrics.cacheStats'
    - Observar los logs para ver invalidaciones de cache
    - Verificar que las métricas de cache se actualizan
 
-### 🛠 Troubleshooting
+### 🛠 Guía Completa de Troubleshooting
 
-#### Problemas de Conexión con Redis
+Esta sección cubre los problemas más comunes y sus soluciones paso a paso.
 
-**Síntoma**: Error "Redis connection failed" o cache no funciona
+#### 🔴 Problemas de Conexión con Redis
+
+**Síntomas Comunes:**
+
+- Error "Redis connection failed" en logs
+- Cache hit ratio = 0 en health check
+- Respuestas lentas incluso para requests repetidas
+- Error "ECONNREFUSED" en logs de la API
+
+**Diagnóstico:**
 
 ```bash
-# Verificar estado de Redis
+# 1. Verificar estado de Redis
 docker-compose ps redis
+# Debería mostrar: Up (healthy)
 
-# Ver logs de Redis
-docker-compose logs redis
+# 2. Ver logs de Redis para errores
+docker-compose logs redis --tail=50
 
-# Reiniciar Redis
-docker-compose restart redis
-
-# Test manual de conexión
+# 3. Test manual de conexión
 docker-compose exec redis redis-cli ping
-# Debería responder: PONG
+# Respuesta esperada: PONG
+
+# 4. Verificar conectividad desde la API
+docker-compose exec api ping redis
+# Debería resolver la IP del contenedor Redis
 ```
 
-**Solución**: Si Redis está caído, el sistema debería funcionar sin cache (degradación elegante). Verificar logs de la API para confirmar.
+**Soluciones:**
+
+```bash
+# Solución 1: Reiniciar Redis
+docker-compose restart redis
+
+# Solución 2: Verificar configuración de memoria
+docker-compose exec redis redis-cli info memory
+# Verificar used_memory_human < maxmemory
+
+# Solución 3: Limpiar cache si está corrupto
+docker-compose exec redis redis-cli flushall
+
+# Solución 4: Recrear contenedor Redis
+docker-compose down redis
+docker-compose up -d redis
+
+# Solución 5: Verificar variables de entorno
+docker-compose exec api env | grep REDIS_URL
+# Debería mostrar: REDIS_URL=redis://redis:6379
+```
+
+**Verificación de Recuperación:**
+
+```bash
+# Test de funcionamiento
+curl "http://localhost:3000/search/health" | jq '.services.redis'
+# Debería mostrar: "connected": true, "operational": true
+```
+
+#### 🟡 Problemas de Cache y Performance
+
+**Síntomas:**
+
+- Cache hit ratio muy bajo (<30%)
+- Respuestas lentas incluso con cache
+- Memoria de Redis agotada
+- Cache no se invalida con eventos
+
+**Diagnóstico Avanzado:**
+
+```bash
+# 1. Verificar métricas de cache detalladas
+curl "http://localhost:3000/search/health" | jq '.metrics.cacheStats'
+
+# 2. Ver estadísticas de Redis
+docker-compose exec redis redis-cli info stats
+docker-compose exec redis redis-cli info memory
+
+# 3. Verificar keys en cache
+docker-compose exec redis redis-cli keys "*" | head -20
+
+# 4. Verificar TTL de keys específicas
+docker-compose exec redis redis-cli ttl "clubs:ChIJW9fXNZNTtpURV6VYAumGQOw"
+
+# 5. Monitorear operaciones en tiempo real
+docker-compose exec redis redis-cli monitor
+```
+
+**Soluciones por Problema:**
+
+**Cache Hit Ratio Bajo:**
+
+```bash
+# Verificar TTL configuration
+docker-compose exec api env | grep CACHE_TTL
+
+# Aumentar TTL si es apropiado
+# Editar docker-compose.yml:
+# CACHE_TTL_CLUBS=7200  # 2 horas en lugar de 1
+# CACHE_TTL_COURTS=3600 # 1 hora en lugar de 30 min
+```
+
+**Memoria Redis Agotada:**
+
+```bash
+# Ver uso de memoria
+docker-compose exec redis redis-cli info memory | grep used_memory_human
+
+# Aumentar memoria máxima en docker-compose.yml:
+# command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+# O limpiar cache manualmente
+docker-compose exec redis redis-cli flushall
+```
+
+**Cache No Se Invalida:**
+
+```bash
+# Verificar que eventos llegan
+docker-compose logs api | grep -i "event" | tail -10
+
+# Test manual de invalidación
+curl -X POST "http://localhost:3000/events" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "club_updated", "clubId": "123", "data": {"openhours": "new"}}'
+
+# Verificar invalidación en logs
+docker-compose logs api | grep -i "invalidat" | tail -5
+```
+
+#### 🟠 Problemas de Rate Limiting
+
+**Síntomas:**
+
+- Requests devuelven 429 (Too Many Requests)
+- Requests se quedan "colgados" esperando
+- Rate limiting no respeta 60 RPM
+- Timeouts en requests
+
+**Diagnóstico:**
+
+```bash
+# 1. Verificar configuración actual
+curl "http://localhost:3000/search/health" | jq '.metrics' | grep -i rate
+
+# 2. Test de rate limiting controlado
+for i in {1..70}; do
+  echo "Request $i: $(curl -w '%{http_code} - %{time_total}s' -o /dev/null -s \
+    'http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26')"
+  sleep 0.5
+done
+
+# 3. Ver buckets de rate limiting en Redis
+docker-compose exec redis redis-cli keys "rate_limit:*"
+docker-compose exec redis redis-cli hgetall "rate_limit:global"
+
+# 4. Monitorear tokens en tiempo real
+watch -n 1 'docker-compose exec redis redis-cli hget rate_limit:global tokens'
+```
+
+**Soluciones:**
+
+**Rate Limiting Muy Estricto:**
+
+```bash
+# Verificar configuración
+docker-compose exec api env | grep RATE_LIMIT
+
+# Ajustar timeouts si es necesario (en docker-compose.yml):
+# RATE_LIMIT_MAX_WAIT_TIME_MS=120000  # 2 minutos
+# RATE_LIMIT_CHECK_INTERVAL_MS=200    # Check cada 200ms
+```
+
+**Buckets Corruptos:**
+
+```bash
+# Limpiar buckets de rate limiting
+docker-compose exec redis redis-cli del "rate_limit:global"
+
+# Reiniciar API para recrear buckets
+docker-compose restart api
+```
+
+**Múltiples Instancias Compitiendo:**
+
+```bash
+# Verificar que solo hay una instancia de API
+docker-compose ps api
+
+# Si hay múltiples, usar identificadores únicos:
+# RATE_LIMIT_IDENTIFIER=api-instance-1
+```
+
+#### 🔵 Problemas de Circuit Breaker
+
+**Síntomas:**
+
+- Requests fallan con "Circuit breaker is open"
+- Siempre devuelve datos de cache (nunca fresh data)
+- Circuit breaker no se recupera automáticamente
+- Fallback no funciona
+
+**Diagnóstico:**
+
+```bash
+# 1. Verificar estado del circuit breaker en logs
+docker-compose logs api | grep -i "circuit" | tail -10
+
+# 2. Test manual de la API mock
+curl "http://localhost:4000/zones"
+curl "http://localhost:4000/clubs?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw"
+
+# 3. Verificar configuración
+docker-compose exec api env | grep CIRCUIT_BREAKER
+
+# 4. Monitorear transiciones de estado
+docker-compose logs api -f | grep -i "circuit.*state"
+```
+
+**Soluciones:**
+
+**Circuit Breaker Stuck Open:**
+
+```bash
+# Verificar que API mock está funcionando
+curl "http://localhost:4000/zones"
+
+# Si API mock funciona, reiniciar API para reset
+docker-compose restart api
+
+# Ajustar thresholds si es muy sensible:
+# CIRCUIT_BREAKER_FAILURE_THRESHOLD=10  # Más tolerante
+# CIRCUIT_BREAKER_RECOVERY_TIMEOUT=30000 # Recuperación más rápida
+```
+
+**Fallback No Funciona:**
+
+```bash
+# Verificar que hay datos en cache
+docker-compose exec redis redis-cli keys "*clubs*"
+
+# Si no hay cache, hacer requests para poblarlo
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26"
+
+# Luego simular falla de API mock
+docker-compose stop mock
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26"
+# Debería devolver datos de cache
+```
+
+#### 🟣 Problemas de Validación de Fechas
+
+**Síntomas:**
+
+- Requests válidas son rechazadas
+- Fechas inválidas son aceptadas
+- Errores de formato de fecha
+- Timezone issues
+
+**Diagnóstico y Soluciones:**
+
+```bash
+# Test con diferentes formatos de fecha
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26"  # Válida
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-01-01"  # Pasada (debería fallar)
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-12-31"  # Muy futura (debería fallar)
+
+# Verificar fecha actual del sistema
+date
+docker-compose exec api date
+
+# Test con fecha calculada dinámicamente
+TOMORROW=$(date -d '+1 day' '+%Y-%m-%d')
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=$TOMORROW"
+```
+
+#### 🔧 Comandos de Diagnóstico Avanzado
+
+**Estado Completo del Sistema:**
+
+```bash
+# Overview completo
+docker-compose ps
+docker stats --no-stream
+
+# Health check detallado
+curl "http://localhost:3000/search/health" | jq .
+
+# Verificar conectividad entre servicios
+docker-compose exec api ping redis
+docker-compose exec api ping mock
+docker-compose exec api nslookup redis
+```
+
+**Monitoreo en Tiempo Real:**
+
+```bash
+# Métricas en tiempo real
+watch -n 2 'curl -s "http://localhost:3000/search/health" | jq ".metrics"'
+
+# Logs en tiempo real con filtros
+docker-compose logs api -f | grep -E "(ERROR|WARN|Cache|Rate|Circuit)"
+
+# Monitoreo de Redis
+docker-compose exec redis redis-cli --latency -i 1
+docker-compose exec redis redis-cli monitor | head -20
+```
+
+**Verificación de Configuración:**
+
+```bash
+# Variables de entorno de la API
+docker-compose exec api env | grep -E "(REDIS|RATE|CACHE|CIRCUIT|ATC)" | sort
+
+# Configuración de Redis
+docker-compose exec redis redis-cli config get "*"
+
+# Verificar puertos y networking
+docker-compose port api 3000
+docker-compose port mock 4000
+docker-compose port redis 6379
+```
+
+#### 🚨 Procedimientos de Emergencia
+
+**Sistema Completamente Caído:**
+
+```bash
+# 1. Parar todo
+docker-compose down
+
+# 2. Limpiar volúmenes si es necesario
+docker-compose down -v
+
+# 3. Rebuild completo
+docker-compose build --no-cache
+
+# 4. Levantar con logs
+docker-compose up -d --build
+docker-compose logs -f
+```
+
+**Performance Extremadamente Lenta:**
+
+```bash
+# 1. Verificar recursos del sistema
+docker stats
+
+# 2. Limpiar cache Redis
+docker-compose exec redis redis-cli flushall
+
+# 3. Reiniciar servicios en orden
+docker-compose restart redis
+sleep 5
+docker-compose restart api
+
+# 4. Test de performance
+time curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26"
+```
+
+**Datos Inconsistentes:**
+
+```bash
+# 1. Limpiar todo el cache
+docker-compose exec redis redis-cli flushall
+
+# 2. Reiniciar API para reset de circuit breaker
+docker-compose restart api
+
+# 3. Test de consistencia
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26" > response1.json
+sleep 1
+curl "http://localhost:3000/search?placeId=ChIJW9fXNZNTtpURV6VYAumGQOw&date=2025-07-26" > response2.json
+diff response1.json response2.json
+```
 
 #### Problemas de Cache
 
@@ -579,42 +935,76 @@ watch -n 2 'curl -s "http://localhost:3000/search/health" | jq ".metrics"'
 - ✅ **Cache Invalidation**: Eventos invalidan cache correctamente
 - ✅ **Arquitectura**: Hexagonal Architecture mantenida sin cambios breaking
 
-### ⚙️ Variables de Entorno y Configuración
+### ⚙️ Variables de Entorno y Configuración Completa
 
-El sistema soporta las siguientes variables de entorno para personalización:
+El sistema soporta configuración completa mediante variables de entorno. Todas las variables tienen valores por defecto sensatos pero pueden ser personalizadas según el ambiente.
 
 #### Variables de Cache (Redis)
 
 ```bash
-REDIS_URL=redis://localhost:6379          # URL de conexión a Redis
-CACHE_TTL_CLUBS=3600                      # TTL para clubs (1 hora)
-CACHE_TTL_COURTS=1800                     # TTL para courts (30 min)
-CACHE_TTL_SLOTS=300                       # TTL para slots (5 min)
+# Conexión a Redis
+REDIS_URL=redis://localhost:6379          # URL de conexión a Redis (default: redis://redis:6379 en Docker)
+
+# TTL (Time To Live) por tipo de recurso
+CACHE_TTL_CLUBS=3600                      # TTL para clubs en segundos (default: 1 hora)
+CACHE_TTL_COURTS=1800                     # TTL para courts en segundos (default: 30 min)
+CACHE_TTL_SLOTS=300                       # TTL para slots en segundos (default: 5 min)
+
+# Configuración de Redis
+REDIS_MAX_MEMORY=256mb                    # Memoria máxima para Redis
+REDIS_EVICTION_POLICY=allkeys-lru         # Política de eviction (LRU recomendado)
 ```
 
-#### Variables de Rate Limiting
+#### Variables de Rate Limiting (Token Bucket)
 
 ```bash
-RATE_LIMIT_RPM=60                         # Requests por minuto (default: 60)
-RATE_LIMIT_BUCKET_TTL_SECONDS=120         # TTL del bucket (2 min)
-RATE_LIMIT_MAX_WAIT_TIME_MS=60000         # Tiempo máximo de espera (1 min)
-RATE_LIMIT_CHECK_INTERVAL_MS=100          # Intervalo de verificación (100ms)
-RATE_LIMIT_STRATEGY=token_bucket          # Estrategia: token_bucket | sliding_window
+# Configuración principal
+RATE_LIMIT_RPM=60                         # Requests por minuto (OBLIGATORIO: 60 según README)
+RATE_LIMIT_BUCKET_TTL_SECONDS=120         # TTL del bucket en Redis (default: 2 min)
+RATE_LIMIT_MAX_WAIT_TIME_MS=60000         # Tiempo máximo de espera por slot (default: 1 min)
+RATE_LIMIT_CHECK_INTERVAL_MS=100          # Intervalo de verificación en ms (default: 100ms)
+
+# Estrategia y comportamiento
+RATE_LIMIT_STRATEGY=token_bucket          # Algoritmo: token_bucket (recomendado)
+RATE_LIMIT_IDENTIFIER=global              # Identificador para buckets (default: global)
 ```
 
-#### Variables de Circuit Breaker
+#### Variables de Circuit Breaker (Three-State Pattern)
 
 ```bash
-CIRCUIT_BREAKER_FAILURE_THRESHOLD=5      # Fallos antes de abrir (default: 5)
-CIRCUIT_BREAKER_RECOVERY_TIMEOUT=60000   # Timeout de recuperación (1 min)
-CIRCUIT_BREAKER_MONITORING_PERIOD=60000  # Período de monitoreo (1 min)
+# Thresholds y timeouts
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=5      # Fallos consecutivos antes de abrir (default: 5)
+CIRCUIT_BREAKER_RECOVERY_TIMEOUT=60000   # Timeout de recuperación en ms (default: 1 min)
+CIRCUIT_BREAKER_MONITORING_PERIOD=60000  # Período de monitoreo en ms (default: 1 min)
+
+# Configuración de estados
+CIRCUIT_BREAKER_HALF_OPEN_MAX_CALLS=3    # Máximo requests en HALF_OPEN (default: 3)
+CIRCUIT_BREAKER_SUCCESS_THRESHOLD=2      # Éxitos para cerrar desde HALF_OPEN (default: 2)
 ```
 
-#### Variables de la API Mock
+#### Variables de la API Mock (No Modificar)
 
 ```bash
-ATC_BASE_URL=http://localhost:4000        # URL de la API mock
-EVENT_INTERVAL_SECONDS=10                 # Intervalo de eventos (10 seg)
+# URLs y conexiones
+ATC_BASE_URL=http://localhost:4000        # URL de la API mock (default: http://mock:4000 en Docker)
+EVENT_PUBLISHER_URL=http://localhost:3000/events  # URL para publicar eventos
+
+# Configuración de eventos
+EVENT_INTERVAL_SECONDS=10                 # Intervalo de eventos automáticos (default: 10 seg)
+REQUESTS_PER_MINUTE=60                    # Límite de la API mock (NO CAMBIAR)
+```
+
+#### Variables de Aplicación
+
+```bash
+# Configuración general
+NODE_ENV=development                      # Ambiente: development | production | test
+PORT=3000                                 # Puerto de la API principal
+LOG_LEVEL=info                           # Nivel de logging: debug | info | warn | error
+
+# Configuración de performance
+MAX_CONCURRENT_REQUESTS=50               # Máximo requests concurrentes
+REQUEST_TIMEOUT_MS=30000                 # Timeout para requests HTTP (default: 30 seg)
 ```
 
 ### 🔧 Configuración Personalizada
