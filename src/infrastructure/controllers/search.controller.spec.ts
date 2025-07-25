@@ -1,7 +1,11 @@
+import { BadRequestException } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import { Test, TestingModule } from '@nestjs/testing';
+import * as moment from 'moment';
 
 import { GetAvailabilityQuery } from '../../domain/commands/get-availaiblity.query';
+import { CACHE_SERVICE } from '../../domain/tokens';
+import { CacheService } from '../services/cache.service';
 import { RedisService } from '../services/redis.service';
 import { SearchController } from './search.controller';
 
@@ -9,6 +13,7 @@ describe('SearchController', () => {
   let controller: SearchController;
   let queryBus: jest.Mocked<QueryBus>;
   let redisService: jest.Mocked<RedisService>;
+  let cacheService: jest.Mocked<CacheService>;
 
   beforeEach(async () => {
     const mockQueryBus = {
@@ -23,6 +28,13 @@ describe('SearchController', () => {
       del: jest.fn(),
     };
 
+    const mockCacheService = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      invalidatePattern: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SearchController],
       providers: [
@@ -34,12 +46,17 @@ describe('SearchController', () => {
           provide: RedisService,
           useValue: mockRedisService,
         },
+        {
+          provide: CACHE_SERVICE,
+          useValue: mockCacheService,
+        },
       ],
     }).compile();
 
     controller = module.get<SearchController>(SearchController);
     queryBus = module.get(QueryBus);
     redisService = module.get(RedisService);
+    cacheService = module.get(CACHE_SERVICE);
   });
 
   it('should be defined', () => {
@@ -51,13 +68,147 @@ describe('SearchController', () => {
       const mockResult = [{ id: 1, name: 'Test Club', courts: [] }];
       queryBus.execute.mockResolvedValue(mockResult);
 
-      const query = { placeId: 'test-place', date: new Date('2024-01-01') };
+      const tomorrow = moment().add(1, 'day').toDate();
+      const query = { placeId: 'test-place', date: tomorrow };
       const result = await controller.searchAvailability(query);
 
       expect(queryBus.execute).toHaveBeenCalledWith(
         new GetAvailabilityQuery(query.placeId, query.date),
       );
       expect(result).toBe(mockResult);
+    });
+
+    it('should log response time and query details on success', async () => {
+      const mockResult = [{ id: 1, name: 'Test Club', courts: [] }];
+      queryBus.execute.mockResolvedValue(mockResult);
+      const logSpy = jest.spyOn(controller['logger'], 'log');
+
+      const tomorrow = moment().add(1, 'day').toDate();
+      const query = { placeId: 'test-place', date: tomorrow };
+
+      await controller.searchAvailability(query);
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Search completed in'),
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('placeId: test-place'),
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `date: ${moment(tomorrow).format('YYYY-MM-DD')}`,
+        ),
+      );
+    });
+
+    it('should log error details on failure', async () => {
+      const error = new Error('Test error');
+      queryBus.execute.mockRejectedValue(error);
+      const logSpy = jest.spyOn(controller['logger'], 'error');
+
+      const tomorrow = moment().add(1, 'day').toDate();
+      const query = { placeId: 'test-place', date: tomorrow };
+
+      await expect(controller.searchAvailability(query)).rejects.toThrow(error);
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Search failed after'),
+        error,
+      );
+    });
+  });
+
+  describe('validateDateRange', () => {
+    let validateDateRange: (date: Date) => void;
+
+    beforeEach(() => {
+      // Access private method for testing
+      validateDateRange = controller['validateDateRange'].bind(controller);
+    });
+
+    it('should not throw for today', () => {
+      const today = moment().startOf('day').toDate();
+      expect(() => validateDateRange(today)).not.toThrow();
+    });
+
+    it('should not throw for tomorrow', () => {
+      const tomorrow = moment().add(1, 'day').startOf('day').toDate();
+      expect(() => validateDateRange(tomorrow)).not.toThrow();
+    });
+
+    it('should not throw for 6 days from today (maximum allowed)', () => {
+      const maxDate = moment().add(6, 'days').startOf('day').toDate();
+      expect(() => validateDateRange(maxDate)).not.toThrow();
+    });
+
+    it('should throw BadRequestException for yesterday', () => {
+      const yesterday = moment().subtract(1, 'day').startOf('day').toDate();
+
+      expect(() => validateDateRange(yesterday)).toThrow(BadRequestException);
+
+      try {
+        validateDateRange(yesterday);
+        fail('Expected BadRequestException to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.message).toContain('is in the past');
+      }
+    });
+
+    it('should throw BadRequestException for 7 days from today', () => {
+      const tooFarDate = moment().add(7, 'days').startOf('day').toDate();
+
+      expect(() => validateDateRange(tooFarDate)).toThrow(BadRequestException);
+
+      try {
+        validateDateRange(tooFarDate);
+        fail('Expected BadRequestException to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.message).toContain('is too far in the future');
+      }
+    });
+
+    it('should throw BadRequestException for 10 days from today', () => {
+      const wayTooFarDate = moment().add(10, 'days').startOf('day').toDate();
+
+      expect(() => validateDateRange(wayTooFarDate)).toThrow(
+        BadRequestException,
+      );
+
+      try {
+        validateDateRange(wayTooFarDate);
+        fail('Expected BadRequestException to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.message).toContain('Maximum allowed date is');
+      }
+    });
+
+    it('should provide specific date in error message for past dates', () => {
+      const yesterday = moment().subtract(1, 'day').startOf('day');
+      const yesterdayDate = yesterday.toDate();
+
+      try {
+        validateDateRange(yesterdayDate);
+        fail('Expected BadRequestException to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.message).toContain(yesterday.format('YYYY-MM-DD'));
+      }
+    });
+
+    it('should provide maximum allowed date in error message for future dates', () => {
+      const tooFarDate = moment().add(8, 'days').startOf('day').toDate();
+      const maxAllowedDate = moment().add(6, 'days').format('YYYY-MM-DD');
+
+      try {
+        validateDateRange(tooFarDate);
+        fail('Expected BadRequestException to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.message).toContain(maxAllowedDate);
+      }
     });
   });
 
@@ -98,6 +249,15 @@ describe('SearchController', () => {
           api: {
             status: 'ok',
             uptime: 123.45,
+          },
+        },
+        metrics: {
+          totalRequests: 0,
+          cacheHitRatio: 0,
+          cacheStats: {
+            hits: 0,
+            misses: 0,
+            total: 0,
           },
         },
       });
@@ -207,6 +367,35 @@ describe('SearchController', () => {
       expect(result.timestamp).toBe('2024-01-01T00:00:00.000Z');
       expect(result.services.api.uptime).toBe(123.45);
       expect(result.services.api.status).toBe('ok');
+    });
+
+    it('should include performance metrics in health check response', async () => {
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue('test-g2kvnkl');
+      redisService.del.mockResolvedValue(1);
+
+      // Simulate some requests to populate metrics
+      const mockResult = [{ id: 1, name: 'Test Club', courts: [] }];
+      queryBus.execute.mockResolvedValue(mockResult);
+      cacheService.get.mockResolvedValue(null); // Cache miss
+
+      const tomorrow = moment().add(1, 'day').toDate();
+      await controller.searchAvailability({
+        placeId: 'test-place',
+        date: tomorrow,
+      });
+
+      const result = await controller.healthCheck();
+
+      expect(result.metrics).toBeDefined();
+      expect(result.metrics.totalRequests).toBe(1);
+      expect(result.metrics.cacheHitRatio).toBeDefined();
+      expect(result.metrics.cacheStats).toBeDefined();
+      expect(result.metrics.cacheStats.hits).toBeDefined();
+      expect(result.metrics.cacheStats.misses).toBeDefined();
+      expect(result.metrics.cacheStats.total).toBeDefined();
     });
   });
 });

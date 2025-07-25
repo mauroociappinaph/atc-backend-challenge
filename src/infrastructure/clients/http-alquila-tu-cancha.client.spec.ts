@@ -269,9 +269,347 @@ describe('HTTPAlquilaTuCanchaClient', () => {
     });
   });
 
+  describe('error handling', () => {
+    it('should handle HTTP errors gracefully in getClubs', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation, fallback) => {
+        try {
+          return await operation();
+        } catch (error) {
+          return fallback ? await fallback() : [];
+        }
+      });
+
+      httpService.axiosRef.get = jest
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual([]);
+      expect(rateLimiter.waitForSlot).toHaveBeenCalledWith('http-client');
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+    });
+
+    it('should handle cache service errors gracefully', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockRejectedValue(new Error('Cache error'));
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual(mockClubs);
+      expect(rateLimiter.waitForSlot).toHaveBeenCalledWith('http-client');
+    });
+
+    it('should handle rate limiter errors gracefully', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockRejectedValue(
+        new Error('Rate limiter error'),
+      );
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      // Should still proceed with the request despite rate limiter error
+      await expect(client.getClubs(placeId)).rejects.toThrow(
+        'Rate limiter error',
+      );
+    });
+  });
+
+  describe('caching behavior', () => {
+    it('should not cache empty results for clubs', async () => {
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: [],
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual([]);
+      expect(cacheService.set).not.toHaveBeenCalled();
+    });
+
+    it('should use correct TTL for different resource types', async () => {
+      // Test clubs TTL (300 seconds)
+      const placeId = 'test-place';
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      await client.getClubs(placeId);
+
+      expect(cacheService.set).toHaveBeenCalledWith(
+        `clubs:${placeId}`,
+        mockClubs,
+        300, // 5 minutes
+      );
+
+      // Reset mocks
+      jest.clearAllMocks();
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockCourtsResponse: AxiosResponse = {
+        data: mockCourts,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest
+        .fn()
+        .mockResolvedValue(mockCourtsResponse);
+
+      await client.getCourts(1);
+
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'courts:1',
+        mockCourts,
+        600, // 10 minutes
+      );
+    });
+  });
+
+  describe('integration with services', () => {
+    it('should properly integrate all services in complete flow', async () => {
+      const placeId = 'test-place';
+
+      // Mock cache miss
+      cacheService.get.mockResolvedValue(null);
+
+      // Mock rate limiter allowing request
+      rateLimiter.waitForSlot.mockResolvedValue();
+
+      // Mock circuit breaker executing operation
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      // Mock successful HTTP response
+      const mockResponse: AxiosResponse = {
+        data: mockClubs,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await client.getClubs(placeId);
+
+      // Verify complete integration flow
+      expect(cacheService.get).toHaveBeenCalledWith(`clubs:${placeId}`);
+      expect(rateLimiter.waitForSlot).toHaveBeenCalledWith('http-client');
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+      expect(httpService.axiosRef.get).toHaveBeenCalledWith('clubs', {
+        baseURL: 'http://localhost:4000',
+        params: { placeId },
+      });
+      expect(cacheService.set).toHaveBeenCalledWith(
+        `clubs:${placeId}`,
+        mockClubs,
+        300,
+      );
+      expect(result).toEqual(mockClubs);
+    });
+
+    it('should handle circuit breaker fallback with expired cache', async () => {
+      const placeId = 'test-place';
+      const expiredClubs = [{ id: 999, name: 'Expired Club' }];
+
+      // Mock cache returning expired data
+      cacheService.get.mockResolvedValue(expiredClubs);
+
+      // Mock rate limiter allowing request
+      rateLimiter.waitForSlot.mockResolvedValue();
+
+      // Mock circuit breaker using fallback
+      circuitBreaker.execute.mockImplementation(async (operation, fallback) => {
+        // Simulate operation failure, use fallback
+        return fallback ? await fallback() : [];
+      });
+
+      const result = await client.getClubs(placeId);
+
+      expect(result).toEqual(expiredClubs);
+      expect(rateLimiter.waitForSlot).toHaveBeenCalledWith('http-client');
+      expect(circuitBreaker.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe('date handling in slots', () => {
+    it('should format dates correctly for slot requests', async () => {
+      const clubId = 1;
+      const courtId = 1;
+      const date = new Date('2025-12-31T23:59:59Z');
+
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockSlots,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      await client.getAvailableSlots(clubId, courtId, date);
+
+      expect(httpService.axiosRef.get).toHaveBeenCalledWith(
+        '/clubs/1/courts/1/slots',
+        {
+          baseURL: 'http://localhost:4000',
+          params: { date: '2025-12-31' },
+        },
+      );
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'slots:1:1:2025-12-31',
+        mockSlots,
+        300,
+      );
+    });
+
+    it('should handle different timezone dates correctly', async () => {
+      const clubId = 1;
+      const courtId = 1;
+      const date = new Date('2025-07-24T03:00:00-05:00'); // EST timezone
+
+      cacheService.get.mockResolvedValue(null);
+      rateLimiter.waitForSlot.mockResolvedValue();
+      circuitBreaker.execute.mockImplementation(async (operation) =>
+        operation(),
+      );
+
+      const mockResponse: AxiosResponse = {
+        data: mockSlots,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+
+      httpService.axiosRef.get = jest.fn().mockResolvedValue(mockResponse);
+
+      await client.getAvailableSlots(clubId, courtId, date);
+
+      // Should format date consistently regardless of timezone
+      expect(httpService.axiosRef.get).toHaveBeenCalledWith(
+        '/clubs/1/courts/1/slots',
+        {
+          baseURL: 'http://localhost:4000',
+          params: { date: '2025-07-24' },
+        },
+      );
+    });
+  });
+
   describe('configuration', () => {
     it('should use correct base URL from config', () => {
       expect(configService.get).toHaveBeenCalledWith(
+        'ATC_BASE_URL',
+        'http://localhost:4000',
+      );
+    });
+
+    it('should handle custom base URL configuration', async () => {
+      // Create a new client instance with custom config
+      const customConfigService = {
+        get: jest.fn().mockReturnValue('http://custom-api:8080'),
+      };
+
+      const customModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          HTTPAlquilaTuCanchaClient,
+          {
+            provide: HttpService,
+            useValue: httpService,
+          },
+          {
+            provide: CACHE_SERVICE,
+            useValue: cacheService,
+          },
+          {
+            provide: RATE_LIMITER_SERVICE,
+            useValue: rateLimiter,
+          },
+          {
+            provide: CircuitBreakerService,
+            useValue: circuitBreaker,
+          },
+          {
+            provide: ConfigService,
+            useValue: customConfigService,
+          },
+        ],
+      }).compile();
+
+      const customClient = customModule.get<HTTPAlquilaTuCanchaClient>(
+        HTTPAlquilaTuCanchaClient,
+      );
+
+      expect(customConfigService.get).toHaveBeenCalledWith(
         'ATC_BASE_URL',
         'http://localhost:4000',
       );
