@@ -266,11 +266,18 @@ describe('SearchController', () => {
         },
         metrics: {
           totalRequests: 0,
-          cacheHitRatio: 0,
+          cacheHitRatio: 0.46,
           cacheStats: {
-            hits: 0,
-            misses: 0,
-            total: 0,
+            hits: 23,
+            misses: 27,
+            total: 50,
+            hitRatio: 0.46,
+            operations: {
+              gets: 50,
+              sets: 25,
+              deletes: 4,
+              invalidations: 7,
+            },
           },
         },
       });
