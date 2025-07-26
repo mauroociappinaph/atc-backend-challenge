@@ -58,3 +58,7 @@ PROJECT_ISSUE_MANAGEMENT.md
 scripts/manage-github-issues.js
 FINAL_PROJECT_STATUS.md
 .github/ISSUE_TEMPLATE/
+
+# Technical Justification Documents (internal documentation)
+ERROR_HANDLING_JUSTIFICATION.md
+AUTOMATED_ISSUE_MANAGEMENT_SUMMARY.md
