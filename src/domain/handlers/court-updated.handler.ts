@@ -9,7 +9,10 @@ import { CACHE_SERVICE } from '../tokens';
 export class CourtUpdatedHandler implements IEventHandler<CourtUpdatedEvent> {
   private readonly logger = new Logger(CourtUpdatedHandler.name);
 
-  constructor(@Inject(CACHE_SERVICE) private cacheService: CacheService) {}
+  constructor(
+    @Inject(CACHE_SERVICE)
+    private readonly cacheService: CacheService,
+  ) {}
 
   async handle(event: CourtUpdatedEvent) {
     this.logger.log(

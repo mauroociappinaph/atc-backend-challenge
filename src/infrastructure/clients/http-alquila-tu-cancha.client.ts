@@ -20,8 +20,10 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
   constructor(
     private httpService: HttpService,
     config: ConfigService,
-    @Inject(CACHE_SERVICE) private cacheService: CacheService,
-    @Inject(RATE_LIMITER_SERVICE) private rateLimiter: RateLimiterService,
+    @Inject(CACHE_SERVICE)
+    private readonly cacheService: CacheService,
+    @Inject(RATE_LIMITER_SERVICE)
+    private readonly rateLimiter: RateLimiterService,
     private circuitBreaker: CircuitBreakerService,
   ) {
     this.base_url = config.get<string>('ATC_BASE_URL', 'http://localhost:4000');
@@ -60,10 +62,10 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
       },
     );
 
-    // Store in cache with 5 minute TTL
+    // Store in cache with 24 hour TTL (rely on event invalidation)
     if (clubs && clubs.length > 0) {
       try {
-        await this.cacheService.set(cacheKey, clubs, 300);
+        await this.cacheService.set(cacheKey, clubs, 86400);
       } catch (error) {
         // Cache service error - continue without caching
         this.logger.warn(`Failed to cache clubs for key ${cacheKey}:`, error);
@@ -108,10 +110,10 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
       },
     );
 
-    // Store in cache with 10 minute TTL (courts change less frequently)
+    // Store in cache with 12 hour TTL (rely on event invalidation)
     if (courts && courts.length > 0) {
       try {
-        await this.cacheService.set(cacheKey, courts, 600);
+        await this.cacheService.set(cacheKey, courts, 43200);
       } catch (error) {
         // Cache service error - continue without caching
         this.logger.warn(`Failed to cache courts for key ${cacheKey}:`, error);
@@ -162,10 +164,10 @@ export class HTTPAlquilaTuCanchaClient implements AlquilaTuCanchaClient {
       },
     );
 
-    // Store in cache with 5 minute TTL (slots change frequently)
+    // Store in cache with 1 hour TTL (rely on event invalidation for accuracy)
     if (slots && slots.length > 0) {
       try {
-        await this.cacheService.set(cacheKey, slots, 300);
+        await this.cacheService.set(cacheKey, slots, 3600);
       } catch (error) {
         // Cache service error - continue without caching
         this.logger.warn(`Failed to cache slots for key ${cacheKey}:`, error);

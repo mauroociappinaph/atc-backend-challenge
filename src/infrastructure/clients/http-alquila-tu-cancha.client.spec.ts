@@ -132,7 +132,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         `clubs:${placeId}`,
         mockClubs,
-        300,
+        86400,
       );
     });
 
@@ -191,7 +191,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         `courts:${clubId}`,
         mockCourts,
-        600,
+        43200,
       );
     });
   });
@@ -240,7 +240,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(result).toEqual(mockSlots);
       expect(rateLimiter.waitForSlot).toHaveBeenCalledWith('http-client');
       expect(circuitBreaker.execute).toHaveBeenCalled();
-      expect(cacheService.set).toHaveBeenCalledWith(cacheKey, mockSlots, 300);
+      expect(cacheService.set).toHaveBeenCalledWith(cacheKey, mockSlots, 3600);
       expect(httpService.axiosRef.get).toHaveBeenCalledWith(
         '/clubs/1/courts/1/slots',
         {
@@ -370,7 +370,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
     });
 
     it('should use correct TTL for different resource types', async () => {
-      // Test clubs TTL (300 seconds)
+      // Test clubs TTL (86400 seconds)
       const placeId = 'test-place';
       cacheService.get.mockResolvedValue(null);
       rateLimiter.waitForSlot.mockResolvedValue();
@@ -393,7 +393,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         `clubs:${placeId}`,
         mockClubs,
-        300, // 5 minutes
+        86400, // 24 hours
       );
 
       // Reset mocks
@@ -421,7 +421,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         'courts:1',
         mockCourts,
-        600, // 10 minutes
+        43200, // 12 hours
       );
     });
   });
@@ -464,7 +464,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         `clubs:${placeId}`,
         mockClubs,
-        300,
+        86400,
       );
       expect(result).toEqual(mockClubs);
     });
@@ -527,7 +527,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         'slots:1:1:2025-12-31',
         mockSlots,
-        300,
+        3600,
       );
     });
 
@@ -792,7 +792,7 @@ describe('HTTPAlquilaTuCanchaClient', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         `clubs:${placeId}`,
         mockClubs,
-        300,
+        86400,
       );
     });
 

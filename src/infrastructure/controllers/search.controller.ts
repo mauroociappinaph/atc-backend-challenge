@@ -100,7 +100,8 @@ export class SearchController {
   constructor(
     private readonly queryBus: QueryBus,
     private readonly redisService: RedisService,
-    @Inject(CACHE_SERVICE) private readonly cacheService: CacheService,
+    @Inject(CACHE_SERVICE)
+    private readonly cacheService: CacheService,
   ) {}
 
   @Get()

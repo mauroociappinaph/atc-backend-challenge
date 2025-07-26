@@ -9,6 +9,7 @@ import { RedisService } from './redis.service';
   imports: [ConfigModule],
   providers: [
     RedisService,
+    RedisCacheService,
     {
       provide: CACHE_SERVICE,
       useClass: RedisCacheService,

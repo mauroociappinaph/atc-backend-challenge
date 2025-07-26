@@ -20,7 +20,7 @@ export class GetAvailabilityHandler
     @Inject(ALQUILA_TU_CANCHA_CLIENT)
     private alquilaTuCanchaClient: AlquilaTuCanchaClient,
     @Inject(CACHE_SERVICE)
-    private cacheService: CacheService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async execute(query: GetAvailabilityQuery): Promise<ClubWithAvailability[]> {
@@ -37,15 +37,15 @@ export class GetAvailabilityHandler
     const clubsFetchTime = Date.now() - clubsStartTime;
     this.logger.debug(`Fetched ${clubs.length} clubs in ${clubsFetchTime}ms`);
 
-    // Optimization 1: Concurrent execution for independent court requests
+    // Optimization 1: Sequential execution to respect rate limits
     const courtsStartTime = Date.now();
-    const clubCourtsPromises = clubs.map(async (club) => {
-      const courts = await this.alquilaTuCanchaClient.getCourts(club.id);
-      return { club, courts };
-    });
+    const clubsWithCourts: Array<{ club: any; courts: any[] }> = [];
 
-    const clubsWithCourts: Array<{ club: any; courts: any[] }> =
-      await Promise.all(clubCourtsPromises);
+    // Process clubs sequentially to avoid overwhelming rate limiter
+    for (const club of clubs) {
+      const courts = await this.alquilaTuCanchaClient.getCourts(club.id);
+      clubsWithCourts.push({ club, courts });
+    }
     const courtsFetchTime = Date.now() - courtsStartTime;
     const totalCourtsRequests = clubs.length;
 

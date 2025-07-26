@@ -10,7 +10,10 @@ import { CACHE_SERVICE } from '../tokens';
 export class SlotAvailableHandler implements IEventHandler<SlotAvailableEvent> {
   private readonly logger = new Logger(SlotAvailableHandler.name);
 
-  constructor(@Inject(CACHE_SERVICE) private cacheService: CacheService) {}
+  constructor(
+    @Inject(CACHE_SERVICE)
+    private readonly cacheService: CacheService,
+  ) {}
 
   async handle(event: SlotAvailableEvent) {
     this.logger.log(

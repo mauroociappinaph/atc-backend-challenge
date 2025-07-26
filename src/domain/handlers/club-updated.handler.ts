@@ -9,7 +9,10 @@ import { CACHE_SERVICE } from '../tokens';
 export class ClubUpdatedHandler implements IEventHandler<ClubUpdatedEvent> {
   private readonly logger = new Logger(ClubUpdatedHandler.name);
 
-  constructor(@Inject(CACHE_SERVICE) private cacheService: CacheService) {}
+  constructor(
+    @Inject(CACHE_SERVICE)
+    private readonly cacheService: CacheService,
+  ) {}
 
   async handle(event: ClubUpdatedEvent) {
     this.logger.log(
@@ -21,7 +24,7 @@ export class ClubUpdatedHandler implements IEventHandler<ClubUpdatedEvent> {
       await this.cacheService.invalidatePattern(`clubs:*`);
       this.logger.debug(`Invalidated club cache for club ${event.clubId}`);
 
-      // If openhours field changed, invalidate slot caches as availability might change
+      // If openhours field was modified, invalidate slot cache as it may change availability
       if (event.fields.includes('openhours')) {
         await this.cacheService.invalidatePattern(`slots:${event.clubId}:*`);
         this.logger.debug(

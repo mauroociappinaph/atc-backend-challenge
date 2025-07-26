@@ -43,11 +43,11 @@ export class RedisCacheService implements CacheService {
     },
   };
 
-  // Default TTL values in seconds
+  // Default TTL values in seconds - longer TTLs with event-driven invalidation
   private readonly defaultTtls = {
-    clubs: 3600, // 1 hour
-    courts: 1800, // 30 minutes
-    slots: 300, // 5 minutes
+    clubs: 86400, // 24 hours - clubs rarely change
+    courts: 43200, // 12 hours - courts change infrequently
+    slots: 3600, // 1 hour - rely on event invalidation for accuracy
   };
 
   constructor(

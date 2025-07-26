@@ -164,7 +164,9 @@ describe('SearchController', () => {
         fail('Expected BadRequestException to be thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.message).toContain('is in the past');
+        expect((error as BadRequestException).message).toContain(
+          'is in the past',
+        );
       }
     });
 
@@ -178,7 +180,9 @@ describe('SearchController', () => {
         fail('Expected BadRequestException to be thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.message).toContain('is too far in the future');
+        expect((error as BadRequestException).message).toContain(
+          'is too far in the future',
+        );
       }
     });
 
@@ -194,7 +198,9 @@ describe('SearchController', () => {
         fail('Expected BadRequestException to be thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.message).toContain('Maximum allowed date is');
+        expect((error as BadRequestException).message).toContain(
+          'Maximum allowed date is',
+        );
       }
     });
 
@@ -207,7 +213,9 @@ describe('SearchController', () => {
         fail('Expected BadRequestException to be thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.message).toContain(yesterday.format('YYYY-MM-DD'));
+        expect((error as BadRequestException).message).toContain(
+          yesterday.format('YYYY-MM-DD'),
+        );
       }
     });
 
@@ -220,7 +228,9 @@ describe('SearchController', () => {
         fail('Expected BadRequestException to be thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.message).toContain(maxAllowedDate);
+        expect((error as BadRequestException).message).toContain(
+          maxAllowedDate,
+        );
       }
     });
   });
