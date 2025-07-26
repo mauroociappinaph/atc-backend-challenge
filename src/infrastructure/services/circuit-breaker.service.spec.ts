@@ -299,7 +299,6 @@ describe('CircuitBreakerService', () => {
   describe('error handling', () => {
     it('should handle unknown state gracefully', async () => {
       // Force an invalid state (this is a theoretical test)
-      const metrics = service.getMetrics();
       (service as any).metrics.state = 'INVALID_STATE';
 
       const mockOperation = jest.fn().mockResolvedValue('success');

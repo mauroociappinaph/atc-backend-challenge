@@ -20,9 +20,81 @@ describe('HTTPAlquilaTuCanchaClient', () => {
   let circuitBreaker: jest.Mocked<CircuitBreakerService>;
   let configService: jest.Mocked<ConfigService>;
 
-  const mockClubs: Club[] = [{ id: 1 }];
+  const createMockClub = (id: number): Club => ({
+    id,
+    permalink: `club-${id}`,
+    name: `Club ${id}`,
+    logo: `logo-${id}`,
+    logo_url: `https://example.com/logo-${id}.jpg`,
+    background: `background-${id}`,
+    background_url: `https://example.com/bg-${id}.jpg`,
+    location: {
+      name: `Location ${id}`,
+      city: `City ${id}`,
+      lat: '0.0',
+      lng: '0.0',
+    },
+    zone: {
+      id: 1,
+      name: 'Zone 1',
+      full_name: 'Full Zone 1',
+      placeid: 'place123',
+      country: {
+        id: 1,
+        name: 'Country',
+        iso_code: 'CO',
+      },
+    },
+    props: {
+      sponsor: false,
+      favorite: false,
+      stars: '5',
+      payment: true,
+    },
+    attributes: ['attr1', 'attr2'],
+    openhours: [
+      {
+        day_of_week: 1,
+        open_time: 8,
+        close_time: 22,
+        open: true,
+      },
+    ],
+    courts: [],
+    _priority: 1,
+  });
 
-  const mockCourts: Court[] = [{ id: 1 }];
+  const createMockCourt = (id: number): Court => ({
+    id,
+    name: `Court ${id}`,
+    attributes: {
+      floor: 'synthetic',
+      light: true,
+      roofed: true,
+      beelup: false,
+    },
+    sports: [
+      {
+        id: 1,
+        parent_id: 0,
+        name: 'Tennis',
+        players_max: 4,
+        order: 1,
+        default_duration: 60,
+        divisible_duration: 30,
+        icon: 'tennis-icon',
+        pivot: {
+          court_id: id,
+          sport_id: 1,
+          enabled: 1,
+        },
+      },
+    ],
+    available: [],
+  });
+
+  const mockClubs: Club[] = [createMockClub(1)];
+  const mockCourts: Court[] = [createMockCourt(1)];
 
   const mockSlots: Slot[] = [
     {

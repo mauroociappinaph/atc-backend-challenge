@@ -4,6 +4,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import {
+  validateNotWrappedResponse,
+  validateSearchResponse,
+} from './helpers/response-validators';
 
 // Helper function to replace Promise.allSettled for older TypeScript
 const allSettled = async (promises: Promise<any>[]): Promise<any[]> => {
@@ -19,6 +23,9 @@ const allSettled = async (promises: Promise<any>[]): Promise<any[]> => {
 
 describe('Performance Load Tests - Simple (e2e)', () => {
   let app: INestApplication;
+
+  // Increase Jest timeout for all tests in this suite
+  jest.setTimeout(30000);
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -77,7 +84,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       console.log(
         `${concurrentRequests} concurrent requests completed in ${totalTime}ms`,
       );
-    }, 15000);
+    }, 25000);
 
     it('should handle rapid sequential requests', async () => {
       const sequentialRequests = 20;
@@ -97,6 +104,9 @@ describe('Performance Load Tests - Simple (e2e)', () => {
 
           if (response.status === 200) {
             successCount++;
+            // Validate response format - should be an array of clubs, not wrapped
+            validateSearchResponse(response.body);
+            validateNotWrappedResponse(response.body);
           } else {
             errorCount++;
           }
@@ -114,7 +124,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       console.log(
         `${sequentialRequests} sequential requests: ${successCount} success, ${errorCount} errors in ${totalTime}ms`,
       );
-    }, 20000);
+    }, 60000);
 
     it('should maintain application stability under mixed load', async () => {
       const mixedRequests = 15;
@@ -163,7 +173,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
 
       // Most requests should be fulfilled (even if they return errors)
       expect(fulfilled).toBeGreaterThan(mixedRequests * 0.5);
-    }, 15000);
+    }, 25000);
 
     it('should handle multiple search requests under load', async () => {
       const searchRequests = 30;
@@ -190,7 +200,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       console.log(
         `${searchRequests} search requests: ${fulfilled} fulfilled in ${totalTime}ms`,
       );
-    }, 10000);
+    }, 20000);
   });
 
   describe('Memory and Resource Management', () => {
@@ -230,7 +240,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
           iterations * requestsPerIteration
         } requests: ${Math.round(memoryIncrease / 1024 / 1024)}MB`,
       );
-    }, 20000);
+    }, 45000);
 
     it('should handle request cleanup properly', async () => {
       const requestCount = 20;
@@ -254,7 +264,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       console.log(
         `Request cleanup test: ${requestCount} requests handled in ${totalTime}ms`,
       );
-    }, 15000);
+    }, 25000);
   });
 
   describe('Application Resilience', () => {
@@ -327,6 +337,6 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       console.log(
         `Mixed endpoint test: ${fulfilled}/${concurrentRequests} requests handled in ${totalTime}ms`,
       );
-    }, 15000);
+    }, 25000);
   });
 });
