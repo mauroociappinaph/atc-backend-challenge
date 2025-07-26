@@ -62,3 +62,6 @@ FINAL_PROJECT_STATUS.md
 # Technical Justification Documents (internal documentation)
 ERROR_HANDLING_JUSTIFICATION.md
 AUTOMATED_ISSUE_MANAGEMENT_SUMMARY.md
+
+# All markdown files (documentation)
+*.md
