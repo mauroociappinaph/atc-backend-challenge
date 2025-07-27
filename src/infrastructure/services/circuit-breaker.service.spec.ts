@@ -14,7 +14,7 @@ describe('CircuitBreakerService', () => {
     get: jest.fn((key: string, defaultValue?: any) => {
       const config = {
         CIRCUIT_BREAKER_FAILURE_THRESHOLD: 3,
-        CIRCUIT_BREAKER_RECOVERY_TIMEOUT: 1000, // 1 second for testing
+        CIRCUIT_BREAKER_RECOVERY_TIMEOUT: 1000,
         CIRCUIT_BREAKER_MONITORING_PERIOD: 1000,
       };
       return config[key] || defaultValue;
