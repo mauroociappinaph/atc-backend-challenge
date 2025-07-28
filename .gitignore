@@ -63,5 +63,9 @@ FINAL_PROJECT_STATUS.md
 ERROR_HANDLING_JUSTIFICATION.md
 AUTOMATED_ISSUE_MANAGEMENT_SUMMARY.md
 
+# Environment files
+.env
+.env.test
+
 # All markdown files (documentation)
 *.md
