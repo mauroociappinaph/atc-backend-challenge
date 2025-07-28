@@ -18,6 +18,7 @@ import {
 } from '../../domain/commands/get-availaiblity.query';
 import { CACHE_SERVICE } from '../../domain/tokens';
 import { CacheService } from '../services/cache.service';
+import { PerformanceMetricsService } from '../services/performance-metrics.service';
 import { RedisService } from '../services/redis.service';
 
 const GetAvailabilitySchema = z.object({
@@ -86,6 +87,36 @@ interface ApiHealthStatus {
   uptime: number;
 }
 
+interface PerformanceDashboard {
+  status: 'ok' | 'degraded' | 'error';
+  timestamp: string;
+  services: {
+    redis: RedisHealthStatus;
+    api: ApiHealthStatus;
+  };
+  metrics: {
+    totalRequests: number;
+    cacheHitRatio: number;
+    cacheStats: {
+      hits: number;
+      misses: number;
+      total: number;
+    };
+  };
+  performance: {
+    current: any;
+    historical: {
+      responseTime: Array<{ timestamp: number; value: number }>;
+      throughput: Array<{ timestamp: number; value: number }>;
+    };
+    alerts: {
+      active: boolean;
+      level: 'none' | 'warning' | 'error' | 'critical';
+      message?: string;
+    };
+  };
+}
+
 @Controller('search')
 export class SearchController {
   private readonly logger = new Logger(SearchController.name);
@@ -102,6 +133,7 @@ export class SearchController {
     private readonly redisService: RedisService,
     @Inject(CACHE_SERVICE)
     private readonly cacheService: CacheService,
+    private readonly performanceMetricsService: PerformanceMetricsService,
   ) {}
 
   @Get()
@@ -142,6 +174,10 @@ export class SearchController {
         0,
       );
 
+      // Record performance metrics
+      this.performanceMetricsService.recordResponseTime(responseTime);
+      this.performanceMetricsService.recordRequest();
+
       this.logger.log(
         `[${requestId}] Search completed in ${responseTime}ms - Found ${result.length} clubs with ${resultCount} courts total`,
       );
@@ -152,6 +188,14 @@ export class SearchController {
       return result;
     } catch (error) {
       const responseTime = Date.now() - startTime;
+
+      // Record error metrics
+      if (error.message?.includes('timeout')) {
+        this.performanceMetricsService.recordError('apiTimeouts');
+      } else if (error.message?.includes('cache')) {
+        this.performanceMetricsService.recordError('cacheFailures');
+      }
+
       this.logger.error(
         `[${requestId}] Search failed after ${responseTime}ms`,
         error,
@@ -201,6 +245,39 @@ export class SearchController {
         api: apiHealth,
       },
       metrics: this.getRequestStats(),
+    };
+  }
+
+  @Get('dashboard')
+  async performanceDashboard(
+    @Query('minutes') minutes?: string,
+  ): Promise<PerformanceDashboard> {
+    const timestamp = new Date().toISOString();
+    const redisHealth = await this.checkRedisHealth();
+    const apiHealth = this.checkApiHealth();
+    const overallStatus = this.determineOverallStatus(redisHealth);
+
+    const historyMinutes = minutes ? parseInt(minutes, 10) : 5;
+    const performanceMetrics = this.performanceMetricsService.getMetrics();
+    const historicalData =
+      this.performanceMetricsService.getHistoricalData(historyMinutes);
+
+    // Determine alert status based on current metrics
+    const alertStatus = this.determineAlertStatus(performanceMetrics);
+
+    return {
+      status: overallStatus,
+      timestamp,
+      services: {
+        redis: redisHealth,
+        api: apiHealth,
+      },
+      metrics: this.getRequestStats(),
+      performance: {
+        current: performanceMetrics,
+        historical: historicalData,
+        alerts: alertStatus,
+      },
     };
   }
 
@@ -316,6 +393,58 @@ export class SearchController {
       totalRequests: this.requestCount,
       cacheHitRatio: cacheMetrics.hitRatio,
       cacheStats: cacheMetrics,
+    };
+  }
+
+  private determineAlertStatus(metrics: any): {
+    active: boolean;
+    level: 'none' | 'warning' | 'error' | 'critical';
+    message?: string;
+  } {
+    const { responseTime, errorRates } = metrics;
+
+    // Check for critical alerts
+    if (responseTime.current > 2000) {
+      return {
+        active: true,
+        level: 'critical',
+        message: `Critical response time: ${responseTime.current}ms exceeds 2000ms threshold`,
+      };
+    }
+
+    // Check for error alerts
+    const totalErrors = Object.values(errorRates).reduce(
+      (sum: number, count: any) => sum + (count as number),
+      0,
+    );
+    if (totalErrors > 10) {
+      return {
+        active: true,
+        level: 'error',
+        message: `High error count: ${totalErrors} errors detected`,
+      };
+    }
+
+    // Check for warning alerts
+    if (responseTime.current > 1000) {
+      return {
+        active: true,
+        level: 'warning',
+        message: `Warning response time: ${responseTime.current}ms exceeds 1000ms threshold`,
+      };
+    }
+
+    if (responseTime.p95 > 1500) {
+      return {
+        active: true,
+        level: 'warning',
+        message: `P95 response time: ${responseTime.p95}ms exceeds 1500ms threshold`,
+      };
+    }
+
+    return {
+      active: false,
+      level: 'none',
     };
   }
 

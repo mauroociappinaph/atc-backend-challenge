@@ -6,6 +6,7 @@ import * as moment from 'moment';
 import { GetAvailabilityQuery } from '../../domain/commands/get-availaiblity.query';
 import { CACHE_SERVICE } from '../../domain/tokens';
 import { CacheService } from '../services/cache.service';
+import { PerformanceMetricsService } from '../services/performance-metrics.service';
 import { RedisService } from '../services/redis.service';
 import { SearchController } from './search.controller';
 
@@ -14,6 +15,7 @@ describe('SearchController', () => {
   let queryBus: jest.Mocked<QueryBus>;
   let redisService: jest.Mocked<RedisService>;
   let cacheService: jest.Mocked<CacheService>;
+  let performanceMetricsService: jest.Mocked<PerformanceMetricsService>;
 
   beforeEach(async () => {
     const mockQueryBus = {
@@ -48,6 +50,42 @@ describe('SearchController', () => {
       resetMetrics: jest.fn(),
     };
 
+    const mockPerformanceMetricsService = {
+      recordResponseTime: jest.fn(),
+      recordRequest: jest.fn(),
+      recordError: jest.fn(),
+      getMetrics: jest.fn().mockReturnValue({
+        responseTime: {
+          current: 150,
+          average1min: 200,
+          average5min: 180,
+          p95: 300,
+          p99: 450,
+        },
+        throughput: {
+          requestsPerMinute: 25,
+          peakRpm: 40,
+        },
+        errorRates: {
+          circuitBreakerTrips: 2,
+          cacheFailures: 1,
+          apiTimeouts: 0,
+        },
+        timestamp: Date.now(),
+      }),
+      getHistoricalData: jest.fn().mockReturnValue({
+        responseTime: [
+          { timestamp: Date.now() - 60000, value: 100 },
+          { timestamp: Date.now() - 30000, value: 200 },
+        ],
+        throughput: [
+          { timestamp: Date.now() - 60000, value: 20 },
+          { timestamp: Date.now() - 30000, value: 25 },
+        ],
+      }),
+      resetMetrics: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SearchController],
       providers: [
@@ -63,6 +101,10 @@ describe('SearchController', () => {
           provide: CACHE_SERVICE,
           useValue: mockCacheService,
         },
+        {
+          provide: PerformanceMetricsService,
+          useValue: mockPerformanceMetricsService,
+        },
       ],
     }).compile();
 
@@ -70,6 +112,7 @@ describe('SearchController', () => {
     queryBus = module.get(QueryBus);
     redisService = module.get(RedisService);
     cacheService = module.get(CACHE_SERVICE);
+    performanceMetricsService = module.get(PerformanceMetricsService);
   });
 
   it('should be defined', () => {
@@ -426,6 +469,288 @@ describe('SearchController', () => {
       expect(result.metrics.cacheStats.hits).toBeDefined();
       expect(result.metrics.cacheStats.misses).toBeDefined();
       expect(result.metrics.cacheStats.total).toBeDefined();
+    });
+  });
+
+  describe('performanceDashboard', () => {
+    beforeEach(() => {
+      jest
+        .spyOn(Date.prototype, 'toISOString')
+        .mockReturnValue('2024-01-01T00:00:00.000Z');
+      jest.spyOn(process, 'uptime').mockReturnValue(123.45);
+      jest.spyOn(Date, 'now').mockReturnValue(1704067200000);
+      jest.spyOn(Math, 'random').mockReturnValue(0.123456789);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should return performance dashboard with default 5-minute window', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      const result = await controller.performanceDashboard();
+
+      expect(result).toEqual({
+        status: 'ok',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        services: {
+          redis: {
+            connected: true,
+            ping: 'PONG',
+            operational: true,
+            error: null,
+          },
+          api: {
+            status: 'ok',
+            uptime: 123.45,
+          },
+        },
+        metrics: {
+          totalRequests: 0,
+          cacheHitRatio: 0.46,
+          cacheStats: {
+            hits: 23,
+            misses: 27,
+            total: 50,
+            hitRatio: 0.46,
+            operations: {
+              gets: 50,
+              sets: 25,
+              deletes: 4,
+              invalidations: 7,
+            },
+          },
+        },
+        performance: {
+          current: {
+            responseTime: {
+              current: 150,
+              average1min: 200,
+              average5min: 180,
+              p95: 300,
+              p99: 450,
+            },
+            throughput: {
+              requestsPerMinute: 25,
+              peakRpm: 40,
+            },
+            errorRates: {
+              circuitBreakerTrips: 2,
+              cacheFailures: 1,
+              apiTimeouts: 0,
+            },
+            timestamp: expect.any(Number),
+          },
+          historical: {
+            responseTime: [
+              { timestamp: expect.any(Number), value: 100 },
+              { timestamp: expect.any(Number), value: 200 },
+            ],
+            throughput: [
+              { timestamp: expect.any(Number), value: 20 },
+              { timestamp: expect.any(Number), value: 25 },
+            ],
+          },
+          alerts: {
+            active: false,
+            level: 'none',
+          },
+        },
+      });
+
+      expect(performanceMetricsService.getMetrics).toHaveBeenCalled();
+      expect(performanceMetricsService.getHistoricalData).toHaveBeenCalledWith(
+        5,
+      );
+    });
+
+    it('should return performance dashboard with custom time window', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      await controller.performanceDashboard('10');
+
+      expect(performanceMetricsService.getHistoricalData).toHaveBeenCalledWith(
+        10,
+      );
+    });
+
+    it('should handle invalid minutes parameter gracefully', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      await controller.performanceDashboard('invalid');
+
+      // Should default to 5 minutes when parsing fails
+      expect(performanceMetricsService.getHistoricalData).toHaveBeenCalledWith(
+        NaN,
+      );
+    });
+
+    it('should return warning alert for high response time', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      // Mock high response time
+      performanceMetricsService.getMetrics.mockReturnValue({
+        responseTime: {
+          current: 1500, // Above warning threshold
+          average1min: 200,
+          average5min: 180,
+          p95: 300,
+          p99: 450,
+        },
+        throughput: {
+          requestsPerMinute: 25,
+          peakRpm: 40,
+        },
+        errorRates: {
+          circuitBreakerTrips: 0,
+          cacheFailures: 0,
+          apiTimeouts: 0,
+        },
+        timestamp: Date.now(),
+      });
+
+      const result = await controller.performanceDashboard();
+
+      expect(result.performance.alerts).toEqual({
+        active: true,
+        level: 'warning',
+        message: 'Warning response time: 1500ms exceeds 1000ms threshold',
+      });
+    });
+
+    it('should return critical alert for very high response time', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      // Mock critical response time
+      performanceMetricsService.getMetrics.mockReturnValue({
+        responseTime: {
+          current: 2500, // Above critical threshold
+          average1min: 200,
+          average5min: 180,
+          p95: 300,
+          p99: 450,
+        },
+        throughput: {
+          requestsPerMinute: 25,
+          peakRpm: 40,
+        },
+        errorRates: {
+          circuitBreakerTrips: 0,
+          cacheFailures: 0,
+          apiTimeouts: 0,
+        },
+        timestamp: Date.now(),
+      });
+
+      const result = await controller.performanceDashboard();
+
+      expect(result.performance.alerts).toEqual({
+        active: true,
+        level: 'critical',
+        message: 'Critical response time: 2500ms exceeds 2000ms threshold',
+      });
+    });
+
+    it('should return error alert for high error count', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      // Mock high error count
+      performanceMetricsService.getMetrics.mockReturnValue({
+        responseTime: {
+          current: 150,
+          average1min: 200,
+          average5min: 180,
+          p95: 300,
+          p99: 450,
+        },
+        throughput: {
+          requestsPerMinute: 25,
+          peakRpm: 40,
+        },
+        errorRates: {
+          circuitBreakerTrips: 5,
+          cacheFailures: 3,
+          apiTimeouts: 4, // Total: 12 errors
+        },
+        timestamp: Date.now(),
+      });
+
+      const result = await controller.performanceDashboard();
+
+      expect(result.performance.alerts).toEqual({
+        active: true,
+        level: 'error',
+        message: 'High error count: 12 errors detected',
+      });
+    });
+
+    it('should return warning alert for high P95 response time', async () => {
+      const testValue = 'test-xjylrx';
+      redisService.isConnected.mockReturnValue(true);
+      redisService.ping.mockResolvedValue('PONG');
+      redisService.set.mockResolvedValue();
+      redisService.get.mockResolvedValue(testValue);
+      redisService.del.mockResolvedValue(1);
+
+      // Mock high P95 response time
+      performanceMetricsService.getMetrics.mockReturnValue({
+        responseTime: {
+          current: 150,
+          average1min: 200,
+          average5min: 180,
+          p95: 1600, // Above P95 warning threshold
+          p99: 450,
+        },
+        throughput: {
+          requestsPerMinute: 25,
+          peakRpm: 40,
+        },
+        errorRates: {
+          circuitBreakerTrips: 0,
+          cacheFailures: 0,
+          apiTimeouts: 0,
+        },
+        timestamp: Date.now(),
+      });
+
+      const result = await controller.performanceDashboard();
+
+      expect(result.performance.alerts).toEqual({
+        active: true,
+        level: 'warning',
+        message: 'P95 response time: 1600ms exceeds 1500ms threshold',
+      });
     });
   });
 });

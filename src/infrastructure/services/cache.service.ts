@@ -29,7 +29,6 @@ export interface CacheMetrics {
 export class RedisCacheService implements CacheService {
   private readonly logger = new Logger(RedisCacheService.name);
 
-  // Metrics tracking
   private metrics: CacheMetrics = {
     hits: 0,
     misses: 0,
@@ -43,11 +42,10 @@ export class RedisCacheService implements CacheService {
     },
   };
 
-  // Default TTL values in seconds - longer TTLs with event-driven invalidation
   private readonly defaultTtls = {
-    clubs: 86400, // 24 hours - clubs rarely change
-    courts: 43200, // 12 hours - courts change infrequently
-    slots: 3600, // 1 hour - rely on event invalidation for accuracy
+    clubs: 86400,
+    courts: 43200,
+    slots: 3600,
   };
 
   constructor(
@@ -60,25 +58,25 @@ export class RedisCacheService implements CacheService {
 
     try {
       if (!this.redisService.isConnected()) {
-        this.logger.warn('Redis not connected, cache miss for key:', key);
+        this.logger.warn('Redis no conectado, fallo de cache para:', key);
         this.recordMiss();
         return null;
       }
 
       const value = await this.redisService.get(key);
       if (value === null) {
-        this.logger.debug(`Cache miss for key: ${key}`);
+        this.logger.debug(`Cache miss para: ${key}`);
         this.recordMiss();
         return null;
       }
 
-      this.logger.debug(`Cache hit for key: ${key}`);
+      this.logger.debug(`Cache hit para: ${key}`);
       this.recordHit();
       return JSON.parse(value) as T;
     } catch (error) {
-      this.logger.error(`Failed to get cache key ${key}:`, error);
+      this.logger.error(`Error al obtener cache ${key}:`, error);
       this.recordMiss();
-      return null; // Graceful degradation
+      return null;
     }
   }
 
@@ -87,10 +85,7 @@ export class RedisCacheService implements CacheService {
 
     try {
       if (!this.redisService.isConnected()) {
-        this.logger.warn(
-          'Redis not connected, skipping cache set for key:',
-          key,
-        );
+        this.logger.warn('Redis no conectado, omitiendo guardado para:', key);
         return;
       }
 
@@ -98,10 +93,11 @@ export class RedisCacheService implements CacheService {
       const effectiveTtl = ttl || this.getDefaultTtl(key);
 
       await this.redisService.set(key, serializedValue, effectiveTtl);
-      this.logger.debug(`Cache set for key: ${key} with TTL: ${effectiveTtl}s`);
+      this.logger.debug(
+        `Cache guardado para: ${key} con TTL: ${effectiveTtl}s`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to set cache key ${key}:`, error);
-      // Don't throw - graceful degradation
+      this.logger.error(`Error al guardar cache ${key}:`, error);
     }
   }
 
@@ -111,17 +107,16 @@ export class RedisCacheService implements CacheService {
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn(
-          'Redis not connected, skipping cache delete for key:',
+          'Redis no conectado, omitiendo eliminación para:',
           key,
         );
         return;
       }
 
       await this.redisService.del(key);
-      this.logger.debug(`Cache deleted for key: ${key}`);
+      this.logger.debug(`Cache eliminado para: ${key}`);
     } catch (error) {
-      this.logger.error(`Failed to delete cache key ${key}:`, error);
-      // Don't throw - graceful degradation
+      this.logger.error(`Error al eliminar cache ${key}:`, error);
     }
   }
 
@@ -131,7 +126,7 @@ export class RedisCacheService implements CacheService {
     try {
       if (!this.redisService.isConnected()) {
         this.logger.warn(
-          'Redis not connected, skipping pattern invalidation:',
+          'Redis no conectado, omitiendo limpieza de patrón:',
           pattern,
         );
         return;
@@ -143,14 +138,15 @@ export class RedisCacheService implements CacheService {
       if (keys.length > 0) {
         await client.del(...keys);
         this.logger.debug(
-          `Invalidated ${keys.length} keys matching pattern: ${pattern}`,
+          `Invalidadas ${keys.length} claves del patrón: ${pattern}`,
         );
       } else {
-        this.logger.debug(`No keys found for pattern: ${pattern}`);
+        this.logger.debug(
+          `No se encontraron claves para el patrón: ${pattern}`,
+        );
       }
     } catch (error) {
-      this.logger.error(`Failed to invalidate pattern ${pattern}:`, error);
-      // Don't throw - graceful degradation
+      this.logger.error(`Error al invalidar patrón ${pattern}:`, error);
     }
   }
 
@@ -174,7 +170,6 @@ export class RedisCacheService implements CacheService {
       );
     }
 
-    // Default fallback
     return this.defaultTtls.slots;
   }
 
