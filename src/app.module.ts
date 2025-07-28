@@ -17,6 +17,7 @@ import { EventsController } from './infrastructure/controllers/events.controller
 import { SearchController } from './infrastructure/controllers/search.controller';
 import { CacheModule } from './infrastructure/services/cache.module';
 import { CircuitBreakerService } from './infrastructure/services/circuit-breaker.service';
+import { PerformanceMetricsService } from './infrastructure/services/performance-metrics.service';
 import { RedisRateLimiterService } from './infrastructure/services/rate-limiter.service';
 
 @Module({
@@ -37,6 +38,7 @@ import { RedisRateLimiterService } from './infrastructure/services/rate-limiter.
     SlotBookedHandler,
     SlotAvailableHandler,
     CircuitBreakerService,
+    PerformanceMetricsService,
   ],
 })
 export class AppModule {}

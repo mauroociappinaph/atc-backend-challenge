@@ -3,6 +3,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import * as moment from 'moment';
 
 import { CacheService } from '../../infrastructure/services/cache.service';
+import { PerformanceMetricsService } from '../../infrastructure/services/performance-metrics.service';
 import {
   ClubWithAvailability,
   GetAvailabilityQuery,
@@ -21,6 +22,7 @@ export class GetAvailabilityHandler
     private alquilaTuCanchaClient: AlquilaTuCanchaClient,
     @Inject(CACHE_SERVICE)
     private readonly cacheService: CacheService,
+    private readonly performanceMetricsService: PerformanceMetricsService,
   ) {}
 
   async execute(query: GetAvailabilityQuery): Promise<ClubWithAvailability[]> {
@@ -147,6 +149,10 @@ export class GetAvailabilityHandler
 
     const totalTime = Date.now() - startTime;
     const totalApiCalls = 1 + totalCourtsRequests + totalSlotsRequests;
+
+    // Record performance metrics
+    this.performanceMetricsService.recordResponseTime(totalTime);
+    this.performanceMetricsService.recordRequest();
 
     // Performance summary logging with optimizations
     this.logger.log(
