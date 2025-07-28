@@ -26,7 +26,7 @@ describe('Performance Load Tests (e2e)', () => {
 
   describe('Concurrent Search Requests', () => {
     const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const testDate = '2025-07-26'; // Tomorrow
+    const testDate = TestDateUtils.getValidTestDate(); // Tomorrow
 
     it('should handle 10 concurrent search requests efficiently', async () => {
       const concurrentRequests = 10;
@@ -213,7 +213,7 @@ describe('Performance Load Tests (e2e)', () => {
 
   describe('Load Testing with Different Dates', () => {
     const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const dates = ['2025-07-26', '2025-07-27', '2025-07-28', '2025-07-29'];
+    const dates = [TestDateUtils.getValidTestDate(), TestDateUtils.getValidTestDate(), '2025-07-28', '2025-07-29'];
 
     it('should handle concurrent requests for different dates', async () => {
       const requestsPerDate = 5;
@@ -258,7 +258,7 @@ describe('Performance Load Tests (e2e)', () => {
       const iterations = 5;
       const requestsPerIteration = 10;
       const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const testDate = '2025-07-26';
+      const testDate = TestDateUtils.getValidTestDate();
 
       const initialMemory = process.memoryUsage();
 
@@ -307,7 +307,7 @@ describe('Performance Load Tests (e2e)', () => {
         ...Array.from({ length: validRequests }, () =>
           request(app.getHttpServer()).get('/search').query({
             placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-            date: '2025-07-26',
+            date: TestDateUtils.getValidTestDate(),
           }),
         ),
         // Invalid requests (bad date)
@@ -344,7 +344,7 @@ describe('Performance Load Tests (e2e)', () => {
   describe('Performance Benchmarks', () => {
     it('should meet performance benchmarks for cached vs uncached requests', async () => {
       const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const testDate = '2025-07-26';
+      const testDate = TestDateUtils.getValidTestDate();
 
       // First request (uncached)
       const uncachedStart = Date.now();
@@ -382,7 +382,7 @@ describe('Performance Load Tests (e2e)', () => {
 
     it('should demonstrate cache hit ratio improvements', async () => {
       const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const testDate = '2025-07-26';
+      const testDate = TestDateUtils.getValidTestDate();
       const totalRequests = 20;
 
       // Make multiple requests to the same endpoint

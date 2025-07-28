@@ -26,7 +26,7 @@ describe('Rate Limiting Integration Tests (e2e)', () => {
 
   describe('Rate Limiting Compliance', () => {
     const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const testDate = '2025-07-26';
+    const testDate = TestDateUtils.getValidTestDate();
 
     it('should respect 60 requests per minute limit', async () => {
       const requestsPerMinute = 60;
@@ -289,7 +289,7 @@ describe('Rate Limiting Integration Tests (e2e)', () => {
     it('should handle concurrent requests from different endpoints', async () => {
       const concurrentRequests = 20;
       const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const testDate = '2025-07-26';
+      const testDate = TestDateUtils.getValidTestDate();
 
       // Mix of search and event requests
       const requests = Array.from(
@@ -357,7 +357,7 @@ describe('Rate Limiting Integration Tests (e2e)', () => {
             .get('/search')
             .query({
               placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-              date: '2025-07-26',
+              date: TestDateUtils.getValidTestDate(),
             });
 
           if (response.status === 200) {
@@ -381,7 +381,7 @@ describe('Rate Limiting Integration Tests (e2e)', () => {
             .get('/search')
             .query({
               placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-              date: '2025-07-26',
+              date: TestDateUtils.getValidTestDate(),
             });
 
           if (response.status === 200) {

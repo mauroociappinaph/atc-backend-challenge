@@ -11,6 +11,7 @@ import {
   CircuitBreakerState,
 } from '../src/infrastructure/services/circuit-breaker.service';
 import { RedisService } from '../src/infrastructure/services/redis.service';
+import { TestDateUtils } from './utils/test-dates';
 
 describe('Circuit Breaker Integration (e2e)', () => {
   let app: INestApplication;
@@ -73,9 +74,10 @@ describe('Circuit Breaker Integration (e2e)', () => {
       const initialMetrics = circuitBreakerService.getMetrics();
 
       // Make a successful request
+      const testDate = TestDateUtils.getValidTestDate();
       const response = await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' })
+        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: testDate })
         .expect(200);
 
       expect(response.body).toBeDefined();
@@ -91,7 +93,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
   describe('Circuit Breaker Fallback Behavior', () => {
     it('should use cached data when circuit breaker is open', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // First, populate cache with a successful request
       const initialResponse = await request(app.getHttpServer())
@@ -121,7 +123,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
 
     it('should handle circuit breaker without cache gracefully', async () => {
       const placeId = 'test-no-cache';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Make request without pre-populated cache
       const response = await request(app.getHttpServer())
@@ -141,7 +143,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
   describe('Circuit Breaker Recovery', () => {
     it('should recover from failures when service becomes available', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Make initial successful request
       const response1 = await request(app.getHttpServer())
@@ -174,7 +176,10 @@ describe('Circuit Breaker Integration (e2e)', () => {
       // Make a request that should succeed
       await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' })
+        .query({
+          placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
+          date: TestDateUtils.getValidTestDate(),
+        })
         .expect(200);
 
       // State should remain stable or improve
@@ -186,7 +191,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
   describe('Circuit Breaker Performance Impact', () => {
     it('should not significantly impact response times in CLOSED state', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       const responseTimes: number[] = [];
 
@@ -221,7 +226,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
 
     it('should provide fast fallback responses when circuit is open', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Populate cache first
       await request(app.getHttpServer())
@@ -253,7 +258,10 @@ describe('Circuit Breaker Integration (e2e)', () => {
       // Test with invalid place ID that might cause service errors
       const response = await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'invalid-place-id', date: '2025-07-26' })
+        .query({
+          placeId: 'invalid-place-id',
+          date: TestDateUtils.getValidTestDate(),
+        })
         .timeout(10000);
 
       // Should handle errors gracefully
@@ -268,7 +276,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
     it('should maintain system stability under error conditions', async () => {
       const validPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
       const invalidPlaceId = 'invalid-place-id';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Mix of valid and invalid requests
       const requests = [
@@ -317,7 +325,10 @@ describe('Circuit Breaker Integration (e2e)', () => {
       // Make a successful request
       await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' })
+        .query({
+          placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
+          date: TestDateUtils.getValidTestDate(),
+        })
         .expect(200);
 
       // Metrics should be updated
@@ -329,7 +340,7 @@ describe('Circuit Breaker Integration (e2e)', () => {
 
     it('should handle concurrent requests appropriately', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Make concurrent requests
       const promises = Array.from({ length: 5 }, () =>

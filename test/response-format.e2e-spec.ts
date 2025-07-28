@@ -32,7 +32,7 @@ describe('Response Format Validation (e2e)', () => {
     it('should return array format, not wrapped in {clubs: [...]}', async () => {
       const response = await request(app.getHttpServer()).get('/search').query({
         placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-        date: '2025-07-26',
+        date: TestDateUtils.getValidTestDate(),
       });
 
       // Should return 200 or handle gracefully

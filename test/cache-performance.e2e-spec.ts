@@ -26,7 +26,7 @@ describe('Cache Performance Tests (e2e)', () => {
 
   describe('Cache Hit Ratio Measurements', () => {
     const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const testDate = '2025-07-26';
+    const testDate = TestDateUtils.getValidTestDate();
 
     it('should demonstrate cache performance improvements', async () => {
       // First request (cache miss) - measure baseline
@@ -123,9 +123,9 @@ describe('Cache Performance Tests (e2e)', () => {
 
     it('should demonstrate cache benefits with different data', async () => {
       const testCases = [
-        { placeId: testPlaceId, date: '2025-07-26' },
-        { placeId: testPlaceId, date: '2025-07-27' },
-        { placeId: 'ChIJoYUAHyvmopUR4xJzVPBE_Lw', date: '2025-07-26' },
+        { placeId: testPlaceId, date: TestDateUtils.getValidTestDate() },
+        { placeId: testPlaceId, date: TestDateUtils.getValidTestDate() },
+        { placeId: 'ChIJoYUAHyvmopUR4xJzVPBE_Lw', date: TestDateUtils.getValidTestDate() },
       ];
 
       const results: any[] = [];
@@ -252,7 +252,7 @@ describe('Cache Performance Tests (e2e)', () => {
   describe('Cache Invalidation Performance', () => {
     it('should handle cache invalidation events efficiently', async () => {
       const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const testDate = '2025-07-26';
+      const testDate = TestDateUtils.getValidTestDate();
 
       // First, populate cache with a search request
       const initialResponse = await request(app.getHttpServer())
@@ -355,7 +355,7 @@ describe('Cache Performance Tests (e2e)', () => {
       const iterations = 3;
       const requestsPerIteration = 10;
       const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const testDate = '2025-07-26';
+      const testDate = TestDateUtils.getValidTestDate();
 
       const iterationResults: any[] = [];
 

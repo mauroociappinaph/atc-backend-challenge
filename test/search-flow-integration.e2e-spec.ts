@@ -52,7 +52,7 @@ describe('Search Flow Integration (e2e)', () => {
 
   describe('Complete Search Flow with Caching', () => {
     const validPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const validDate = '2025-07-26';
+    const validDate = TestDateUtils.getValidTestDate();
 
     it('should complete full search flow with cache population', async () => {
       // First request - should populate cache
@@ -142,7 +142,7 @@ describe('Search Flow Integration (e2e)', () => {
     it('should include performance metrics in response headers or logs', async () => {
       const response = await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' })
+        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: TestDateUtils.getValidTestDate() })
         .expect(200);
 
       // Response should be successful
@@ -155,7 +155,7 @@ describe('Search Flow Integration (e2e)', () => {
 
     it('should handle concurrent requests efficiently', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Make 5 concurrent requests
       const promises = Array.from({ length: 5 }, () =>
@@ -205,7 +205,7 @@ describe('Search Flow Integration (e2e)', () => {
       // Make a search request first to populate metrics
       await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' });
+        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: TestDateUtils.getValidTestDate() });
 
       const response = await request(app.getHttpServer())
         .get('/search/health')
@@ -225,7 +225,7 @@ describe('Search Flow Integration (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' })
+        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: TestDateUtils.getValidTestDate() })
         .expect(200);
 
       expect(response.body).toBeDefined();
@@ -259,7 +259,7 @@ describe('Search Flow Integration (e2e)', () => {
       // Test with SQL injection attempt
       await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: "'; DROP TABLE clubs; --", date: '2025-07-26' })
+        .query({ placeId: "'; DROP TABLE clubs; --", date: TestDateUtils.getValidTestDate() })
         .expect(400);
     });
   });
@@ -274,7 +274,7 @@ describe('Search Flow Integration (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .get('/search')
-        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: '2025-07-26' })
+        .query({ placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw', date: TestDateUtils.getValidTestDate() })
         .expect(200);
 
       expect(response.body).toBeDefined();
@@ -285,7 +285,7 @@ describe('Search Flow Integration (e2e)', () => {
 
     it('should handle high load gracefully', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Make 10 concurrent requests to test system under load
       const promises = Array.from(
@@ -310,7 +310,7 @@ describe('Search Flow Integration (e2e)', () => {
   describe('Data Consistency', () => {
     it('should maintain data consistency across multiple requests', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Make first request to populate cache
       const response1 = await request(app.getHttpServer())
@@ -333,7 +333,7 @@ describe('Search Flow Integration (e2e)', () => {
 
     it('should handle cache invalidation correctly', async () => {
       const placeId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-      const date = '2025-07-26';
+      const date = TestDateUtils.getValidTestDate();
 
       // Populate cache
       await request(app.getHttpServer())

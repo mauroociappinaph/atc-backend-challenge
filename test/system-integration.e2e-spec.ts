@@ -127,7 +127,7 @@ describe('System Integration (e2e)', () => {
       // Missing placeId
       const response1 = await request(app.getHttpServer())
         .get('/search')
-        .query({ date: '2025-07-26' })
+        .query({ date: TestDateUtils.getValidTestDate() })
         .timeout(5000);
 
       expect(response1.status).toBe(400);
@@ -274,7 +274,7 @@ describe('System Integration (e2e)', () => {
         .get('/search')
         .query({
           placeId: 'a'.repeat(1000), // Very long string
-          date: '2025-07-26',
+          date: TestDateUtils.getValidTestDate(),
         })
         .timeout(5000);
 

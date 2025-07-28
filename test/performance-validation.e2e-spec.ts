@@ -26,7 +26,7 @@ describe('Performance Validation Tests (e2e)', () => {
 
   describe('Response Time Improvements', () => {
     const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const testDate = '2025-07-26';
+    const testDate = TestDateUtils.getValidTestDate();
 
     it('should demonstrate significant response time improvements with caching', async () => {
       // Baseline measurement (first request - cache miss)
@@ -145,11 +145,11 @@ describe('Performance Validation Tests (e2e)', () => {
 
     it('should demonstrate performance improvements across different data sets', async () => {
       const testCases = [
-        { placeId: testPlaceId, date: '2025-07-26', name: 'Place1-Day1' },
-        { placeId: testPlaceId, date: '2025-07-27', name: 'Place1-Day2' },
+        { placeId: testPlaceId, date: TestDateUtils.getValidTestDate(), name: 'Place1-Day1' },
+        { placeId: testPlaceId, date: TestDateUtils.getValidTestDate(), name: 'Place1-Day2' },
         {
           placeId: 'ChIJoYUAHyvmopUR4xJzVPBE_Lw',
-          date: '2025-07-26',
+          date: TestDateUtils.getValidTestDate(),
           name: 'Place2-Day1',
         },
       ];
@@ -307,7 +307,7 @@ describe('Performance Validation Tests (e2e)', () => {
 
   describe('Performance Regression Detection', () => {
     const testPlaceId = 'ChIJW9fXNZNTtpURV6VYAumGQOw';
-    const testDate = '2025-07-26';
+    const testDate = TestDateUtils.getValidTestDate();
 
     it('should detect performance regressions in response times', async () => {
       const testIterations = 5;

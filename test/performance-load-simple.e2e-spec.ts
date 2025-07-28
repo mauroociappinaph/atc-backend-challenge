@@ -56,7 +56,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
             // Valid requests
             return request(app.getHttpServer()).get('/search').query({
               placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-              date: '2025-07-26',
+              date: TestDateUtils.getValidTestDate(),
             });
           } else {
             // Invalid requests to test error handling
@@ -99,7 +99,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
             .get('/search')
             .query({
               placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-              date: '2025-07-26',
+              date: TestDateUtils.getValidTestDate(),
             });
 
           if (response.status === 200) {
@@ -139,7 +139,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
             // Valid request
             return request(app.getHttpServer()).get('/search').query({
               placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-              date: '2025-07-26',
+              date: TestDateUtils.getValidTestDate(),
             });
           case 1:
             // Invalid date
@@ -183,7 +183,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       const requests = Array.from({ length: searchRequests }, () =>
         request(app.getHttpServer()).get('/search').query({
           placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-          date: '2025-07-26',
+          date: TestDateUtils.getValidTestDate(),
         }),
       );
 
@@ -214,7 +214,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
         const requests = Array.from({ length: requestsPerIteration }, () =>
           request(app.getHttpServer()).get('/search').query({
             placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-            date: '2025-07-26',
+            date: TestDateUtils.getValidTestDate(),
           }),
         );
 
@@ -250,7 +250,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       const requests = Array.from({ length: requestCount }, () =>
         request(app.getHttpServer()).get('/search').query({
           placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-          date: '2025-07-26',
+          date: TestDateUtils.getValidTestDate(),
         }),
       );
 
@@ -283,7 +283,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
       const normalRequests = Array.from({ length: 5 }, () =>
         request(app.getHttpServer()).get('/search').query({
           placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-          date: '2025-07-26',
+          date: TestDateUtils.getValidTestDate(),
         }),
       );
 
@@ -309,7 +309,7 @@ describe('Performance Load Tests - Simple (e2e)', () => {
           } else if (index % 3 === 1) {
             return request(app.getHttpServer()).get('/search').query({
               placeId: 'ChIJW9fXNZNTtpURV6VYAumGQOw',
-              date: '2025-07-26',
+              date: TestDateUtils.getValidTestDate(),
             });
           } else {
             return request(app.getHttpServer())
