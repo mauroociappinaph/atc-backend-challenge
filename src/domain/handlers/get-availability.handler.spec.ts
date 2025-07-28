@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as moment from 'moment';
 
 import { AlquilaTuCanchaClient } from '../../domain/ports/aquila-tu-cancha.client';
+import { PerformanceMetricsService } from '../../infrastructure/services/performance-metrics.service';
 import { GetAvailabilityQuery } from '../commands/get-availaiblity.query';
 import { Club } from '../model/club';
 import { Court } from '../model/court';
@@ -24,6 +25,34 @@ describe('GetAvailabilityHandler', () => {
       invalidatePattern: jest.fn().mockResolvedValue(undefined),
     };
 
+    const mockPerformanceMetricsService = {
+      recordResponseTime: jest.fn(),
+      recordRequest: jest.fn(),
+      recordCircuitBreakerTrip: jest.fn(),
+      recordCacheFailure: jest.fn(),
+      recordApiTimeout: jest.fn(),
+      getMetrics: jest.fn().mockReturnValue({
+        responseTime: {
+          current: 0,
+          average1min: 0,
+          average5min: 0,
+          p95: 0,
+          p99: 0,
+        },
+        throughput: {
+          requestsPerMinute: 0,
+          peakRpm: 0,
+        },
+        errorRates: {
+          circuitBreakerTrips: 0,
+          cacheFailures: 0,
+          apiTimeouts: 0,
+        },
+        timestamp: Date.now(),
+      }),
+      checkAlerts: jest.fn().mockReturnValue([]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GetAvailabilityHandler,
@@ -34,6 +63,10 @@ describe('GetAvailabilityHandler', () => {
         {
           provide: CACHE_SERVICE,
           useValue: mockCacheService,
+        },
+        {
+          provide: PerformanceMetricsService,
+          useValue: mockPerformanceMetricsService,
         },
       ],
     }).compile();
