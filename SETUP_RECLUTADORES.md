@@ -61,8 +61,6 @@ npm test
 
 ```bash
 npm run test:e2e
-```
-
 ## Optimizaciones Implementadas
 
 - **🚀 Cache Redis**: TTL diferenciado por tipo de recurso
@@ -72,48 +70,4 @@ npm run test:e2e
 - **🔄 Event-driven**: Invalidación de cache en tiempo real
 - **🧪 Tests**: 200+ tests unitarios + integración
 
-## Justificaciones Técnicas
-
-### ¿Por qué Redis?
-
-- **Persistencia**: Mantiene cache entre reinicios de la API
-- **TTL automático**: Expira datos sin intervención manual
-- **Concurrencia**: Múltiples instancias pueden compartir cache
-
-### ¿Por qué Token Bucket para Rate Limiting?
-
-- **Cumplimiento estricto**: Garantiza exactamente 60 RPM
-- **Manejo de ráfagas**: Permite requests agrupadas hasta el límite
-- **Distribución**: Funciona con múltiples instancias de API
-
-### ¿Por qué Circuit Breaker?
-
-- **Resiliencia**: API sigue funcionando cuando mock API falla
-- **Fallback inteligente**: Prefiere datos desactualizados a no datos
-- **Auto-recovery**: Se recupera automáticamente sin intervención
-
-### ¿Por qué TTL diferenciado?
-
-- **Clubs (1h)**: Cambian raramente, cache largo es seguro
-- **Courts (30min)**: Cambios ocasionales, balance cache/freshness
-- **Slots (5min)**: Cambian frecuentemente, cache corto para precisión
-
-### ¿Por qué Event-driven Invalidation?
-
-- **Consistencia**: Cache se actualiza inmediatamente con cambios
-- **Eficiencia**: Solo invalida lo que realmente cambió
-- **Tiempo real**: Usuarios ven cambios sin esperar TTL
-
-## Arquitectura Respetada
-
-✅ Hexagonal Architecture mantenida
-✅ API Mock NO modificada (fuente de verdad)
-✅ Todos los requerimientos del challenge cumplidos
-
-## Parar el Proyecto
-
-```bash
-docker-compose down
 ```
-
----
